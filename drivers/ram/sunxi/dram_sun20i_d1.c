@@ -651,7 +651,7 @@ static void mctl_phy_ac_remapping(const dram_para_t *para,
 				  const dram_config_t *config)
 {
 	const uint8_t *cfg;
-	uint32_t fuse, val;
+	uint32_t fuse, chip_id, val;
 
 	/*
 	 * It is unclear whether the LPDDRx types don't need any remapping,
@@ -662,7 +662,9 @@ static void mctl_phy_ac_remapping(const dram_para_t *para,
 		return;
 
 	fuse = (readl(SUNXI_SID_BASE + 0x28) & 0xf00) >> 8;
-	debug("DDR efuse: 0x%x\n", fuse);
+	chip_id = (readl(SUNXI_SID_BASE) & 0xffff);
+	printf("DDR efuse: 0x%x, chip ip efuse: 0x%x\n",
+	       fuse, chip_id);
 
 	if (para->dram_type == SUNXI_DRAM_TYPE_DDR2) {
 		if (fuse == 15)
@@ -675,7 +677,12 @@ static void mctl_phy_ac_remapping(const dram_para_t *para,
 			switch (fuse) {
 			case 8: cfg = ac_remapping_tables[2]; break;
 			case 9: cfg = ac_remapping_tables[3]; break;
-			case 10: cfg = ac_remapping_tables[5]; break;
+			case 10:
+				cfg = ac_remapping_tables[5];
+				if (chip_id == 0x6800 || chip_id == 0x7200) {
+					cfg = ac_remapping_tables[0];
+				}
+				break;
 			case 11: cfg = ac_remapping_tables[4]; break;
 			default:
 			case 12: cfg = ac_remapping_tables[1]; break;
