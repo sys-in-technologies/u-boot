@@ -641,6 +641,7 @@ void sunxi_board_init(void)
 		clock_set_pll1(get_board_sys_clk());
 	else
 		printf("Failed to set core voltage! Can't set CPU frequency\n");
+
 }
 #endif /* CONFIG_SPL_BUILD */
 
@@ -842,6 +843,9 @@ int board_late_init(void)
 	usb_ether_init();
 #endif
 
+#ifdef CONFIG_USB_GADGET
+	g_dnl_board_usb_cable_connected();
+#endif
 	return 0;
 }
 
