@@ -22,3 +22,8 @@ config SPL_IMAGE_TYPE
 	string
 	default "sunxi_egon" if SPL_IMAGE_TYPE_SUNXI_EGON
 	default "sunxi_toc0" if SPL_IMAGE_TYPE_SUNXI_TOC0
+
+config CMD_ENWDT
+	bool "command to enable watchdog"
+	help
+	  Select this option to embed the command of enabling watchdog.
