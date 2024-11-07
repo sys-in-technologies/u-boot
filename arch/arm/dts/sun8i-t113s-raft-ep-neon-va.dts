@@ -19,6 +19,11 @@
         chosen {
                stdout-path = "serial0:115200n8";
         };
+
+	watchdog {
+		compatible = "allwinner,sun20i-d1-wdt";
+		reg = <0x020500A0 0x20>;
+	};
 };
 
 &cpu0 {
