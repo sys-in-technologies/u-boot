@@ -850,6 +850,93 @@ int misc_init_r(void)
 	return 0;
 }
 
+int raft_user_gpios_init_r(void)
+{
+	int node_offset;
+	int subnode_offset;
+	const char *pin;
+	const char *direction;
+	const char *subnode_name;
+	int value;
+	int ret;
+	int gpio;
+
+	node_offset = fdt_node_offset_by_compatible(gd->fdt_blob,
+					-1, "raft-user-gpios");
+	if (node_offset < 0) {
+		printf("raft user gpios not defined\n");
+		return 0;
+	}
+
+	for (subnode_offset = fdt_first_subnode(gd->fdt_blob, node_offset);
+	     subnode_offset >= 0;
+	     subnode_offset = fdt_next_subnode(gd->fdt_blob, subnode_offset)) {
+		subnode_name = fdt_get_name(gd->fdt_blob, subnode_offset, NULL);
+
+		pin = fdt_getprop(gd->fdt_blob,
+				  subnode_offset, "pin", NULL);
+		if (!pin) {
+			printf("%s: Cannot get property: pin\n", subnode_name);
+			continue;
+		}
+
+		direction = fdt_getprop(gd->fdt_blob,
+					subnode_offset, "direction", NULL);
+		if (!direction) {
+			printf("%s: Cannot get property: direction\n",
+				subnode_name);
+			continue;
+		}
+
+		if (!strcmp(direction, "output")) {
+			value = fdtdec_get_int(gd->fdt_blob,
+					       subnode_offset, "value", -1);
+			if (value == -1) {
+				printf("%s: Cannot get property: value\n",
+					subnode_name);
+				continue;
+			}
+
+			if (value != 0 && value != 1) {
+				printf("%s: value only 0 or 1\n", subnode_name);
+				continue;
+			}
+		} else if (!strcmp(direction, "input")) {
+			value = 0;
+		} else {
+			printf("%s: direction only input or output\n",
+				subnode_name);
+			continue;
+		}
+
+		ret = gpio_lookup_name(pin, NULL, NULL, &gpio);
+		if (ret) {
+			printf("gpio: %s not found\n", pin);
+			continue;
+		}
+
+		ret = gpio_request(gpio, subnode_name);
+		if (ret && ret != -EBUSY) {
+			printf("gpio: requesting pin %u failed\n", gpio);
+			continue;
+		}
+
+		if (!strcmp(direction, "output")) {
+			ret = gpio_direction_output(gpio, value);
+		} else {
+			ret = gpio_direction_input(gpio);
+		}
+
+		if (ret) {
+			printf("gpio: set direction pin %u failed\n", gpio);
+		}
+	}
+
+	printf("raft user gpios init success\n");
+
+	return 0;
+}
+
 int board_late_init(void)
 {
 #ifdef CONFIG_USB_ETHER
@@ -859,6 +946,9 @@ int board_late_init(void)
 #ifdef CONFIG_USB_GADGET
 	g_dnl_board_usb_cable_connected();
 #endif
+
+	raft_user_gpios_init_r();
+
 	return 0;
 }
 
