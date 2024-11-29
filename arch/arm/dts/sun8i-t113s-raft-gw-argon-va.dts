@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (C) 2022 Arm Ltd.
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/leds/common.h>
+
+/dts-v1/;
+
+#include "sun8i-t113s.dtsi"
+
+/ {
+	model = "Raft Gataway ARGON VA";
+	compatible = "allwinner,sun8i-t113s";
+
+	aliases {
+                serial0 = &uart0;
+	};
+
+        chosen {
+               stdout-path = "serial0:115200n8";
+        };
+
+	/* board wide 5V supply directly from DC input */
+	reg_vcc5v: regulator-5v {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+	};
+
+	/* AMS1117-3.3 regulator on the board */
+	reg_3v3: regulator-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vcc5v>;
+	};
+
+	/* EA3036C DC/DC regulator on the board, also supplying VDD-SYS */
+	reg_vcc_core: regulator-core {
+		regulator-name = "vcc-core";
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <900000>;
+		vin-supply = <&reg_vcc5v>;
+	};
+
+	/* XC6206 LDO on the board */
+	reg_avdd2v8: regulator-avdd {
+		compatible = "regulator-fixed";
+		regulator-name = "avdd2v8";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		vin-supply = <&reg_3v3>;
+	};
+
+	raft-user-gpios {
+                compatible = "raft-user-gpios";
+		mesh-pwr-gpios {
+			pin = "PC6";
+			direction = "output";
+			value = <1>;
+		};
+
+		wifi-pwr-gpios {
+			pin = "PC7";
+			direction = "output";
+			value = <0>;
+		};
+
+		4g-pwr-gpios {
+			pin = "PC3";
+			direction = "output";
+			value = <1>;
+		};
+
+		4g-rst-gpios {
+			pin = "PC2";
+			direction = "output";
+			value = <1>;
+		};
+
+		tp-pwr-gpios {
+			pin = "PD18";
+			direction = "output";
+			value = <0>;
+		};
+
+                ephy-rst-gpios {
+			pin = "PG9";
+			direction = "output";
+			value = <0>;
+		};
+
+		nd-full-gpios {
+			pin = "PD16";
+			direction = "input";
+		};
+
+		nd-empty-gpios {
+			pin = "PD15";
+			direction = "input";
+		};
+
+		nd-mode-gpios {
+			pin = "PD14";
+			direction = "input";
+		};
+	};
+
+	watchdog {
+		compatible = "allwinner,sun20i-d1-wdt";
+		reg = <0x020500A0 0x20>;
+	};
+};
+
+&dcxo {
+	clock-frequency = <24000000>;
+};
+
+&cpu0 {
+	cpu-supply = <&reg_vcc_core>;
+};
+
+&cpu1 {
+	cpu-supply = <&reg_vcc_core>;
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_pe_pins>;
+	status = "okay";
+};
+
+&mmc0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mmc0_pins>;
+	vmmc-supply = <&reg_3v3>;
+	disable-wp;
+	bus-width = <4>;
+	status = "okay";
+};
+
+&pio {
+	vcc-pb-supply = <&reg_3v3>;
+	vcc-pd-supply = <&reg_3v3>;
+	vcc-pe-supply = <&reg_avdd2v8>;
+	vcc-pf-supply = <&reg_3v3>;
+	vcc-pg-supply = <&reg_3v3>;
+
+	rmii_pg_pins: rmii-pg-pins {
+		pins = "PG0", "PG1", "PG2", "PG3", "PG4",
+		       "PG5", "PG12", "PG13", "PG14", "PG15";
+		function = "emac";
+	};
+};
+
+&emac {
+	compatible = "allwinner,sun50i-h6-emac";
+	pinctrl-names = "default";
+	pinctrl-0 = <&rmii_pg_pins>;
+	clocks = <&ccu CLK_BUS_EMAC>, <&ccu CLK_EMAC_25M>;
+	clock-names = "stmmaceth", "pclk";
+	phy-mode = "rmii";
+	phy-handle = <&phy0>;
+	phy-supply = <&reg_3v3>;
+	allwinner,tx-delay-ps = <300>;
+	status = "okay";
+};
+
+&mdio {
+	phy0: ethernet-phy@0 {
+		reg=<0>;
+		motorcomm,clk-out-frequency-hz = <125000000>;
+		motorcomm,auto-sleep-disabled;
+		motorcomm,keep-pll-enabled;
+		rx-internal-delay-ps = <1050>;
+      };
+
+};
+
+&ehci1 {
+	status = "okay";
+};
+
+&ohci1 {
+	status = "okay";
+};
+/* The USB-C socket has its CC pins pulled to GND, so is hardwired as a UFP. */
+&usb_otg {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usbphy {
+	usb1_vbus-supply = <&reg_vcc5v>;
+	status = "okay";
+};
+
