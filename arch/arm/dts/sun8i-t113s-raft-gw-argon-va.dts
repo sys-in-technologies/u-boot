@@ -14,12 +14,12 @@
 	compatible = "allwinner,sun8i-t113s";
 
 	aliases {
-                serial0 = &uart0;
+		serial0 = &uart0;
 	};
 
-        chosen {
-               stdout-path = "serial0:115200n8";
-        };
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
 
 	/* board wide 5V supply directly from DC input */
 	reg_vcc5v: regulator-5v {
@@ -57,56 +57,58 @@
 	};
 
 	raft-user-gpios {
-                compatible = "raft-user-gpios";
+		compatible = "raft-user-gpios";
 		mesh-pwr-gpios {
 			pin = "PC6";
-			direction = "output";
+			function = "output";
 			value = <1>;
 		};
 
 		wifi-pwr-gpios {
 			pin = "PC7";
-			direction = "output";
+			function = "output";
 			value = <0>;
 		};
 
 		4g-pwr-gpios {
 			pin = "PC3";
-			direction = "output";
+			function = "output";
 			value = <1>;
 		};
 
 		4g-rst-gpios {
 			pin = "PC2";
-			direction = "output";
+			function = "reset";
 			value = <1>;
+			keep_ms = <100>;
 		};
 
 		tp-pwr-gpios {
 			pin = "PD18";
-			direction = "output";
+			function = "output";
 			value = <0>;
 		};
 
                 ephy-rst-gpios {
 			pin = "PG9";
-			direction = "output";
-			value = <0>;
+			function = "reset";
+			value = <1>;
+			keep_ms = <100>;
 		};
 
 		nd-full-gpios {
 			pin = "PD16";
-			direction = "input";
+			function = "input";
 		};
 
 		nd-empty-gpios {
 			pin = "PD15";
-			direction = "input";
+			function = "input";
 		};
 
 		nd-mode-gpios {
 			pin = "PD14";
-			direction = "input";
+			function = "input";
 		};
 	};
 
@@ -152,7 +154,8 @@
 
 	rmii_pg_pins: rmii-pg-pins {
 		pins = "PG0", "PG1", "PG2", "PG3", "PG4",
-		       "PG5", "PG12", "PG13", "PG14", "PG15";
+		"PG5", "PG6", "PG7", "PG8", "PG10", "PG11",
+		"PG12", "PG13", "PG14", "PG15";
 		function = "emac";
 	};
 };
@@ -162,23 +165,19 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&rmii_pg_pins>;
 	clocks = <&ccu CLK_BUS_EMAC>, <&ccu CLK_EMAC_25M>;
-	clock-names = "stmmaceth", "pclk";
+	clock-names = "stmmaceth", "ext25m_clk";
 	phy-mode = "rmii";
 	phy-handle = <&phy0>;
 	phy-supply = <&reg_3v3>;
-	allwinner,tx-delay-ps = <300>;
 	status = "okay";
 };
 
 &mdio {
 	phy0: ethernet-phy@0 {
-		reg=<0>;
-		motorcomm,clk-out-frequency-hz = <125000000>;
+		reg = <0>;
 		motorcomm,auto-sleep-disabled;
 		motorcomm,keep-pll-enabled;
-		rx-internal-delay-ps = <1050>;
-      };
-
+	};
 };
 
 &ehci1 {
@@ -198,4 +197,3 @@
 	usb1_vbus-supply = <&reg_vcc5v>;
 	status = "okay";
 };
-

@@ -16,9 +16,9 @@
                 serial0 = &uart0;
 	};
 
-        chosen {
-               stdout-path = "serial0:115200n8";
-        };
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
 
 	watchdog {
 		compatible = "allwinner,sun20i-d1-wdt";
@@ -41,7 +41,7 @@
 };
 
 &mmc0 {
-      /delete-property/ cd-gpios;
+	/delete-property/ cd-gpios;
 };
 
 &mmc1 {
@@ -49,21 +49,20 @@
 };
 
 &pio {
-        rgmii_pg_pins: rgmii-pg-pins {
-                pins = "PG0", "PG1", "PG2", "PG3", "PG4",
-                "PG5", "PG6", "PG7", "PG8", "PG9", "PG10",
-                "PG11", "PG12", "PG13", "PG14", "PG15";
-                function = "emac";
-        };
+	rgmii_pg_pins: rgmii-pg-pins {
+		pins = "PG0", "PG1", "PG2", "PG3", "PG4",
+		"PG5", "PG6", "PG7", "PG8", "PG9", "PG10",
+		"PG11", "PG12", "PG13", "PG14", "PG15";
+		function = "emac";
+	};
 };
-
 
 &emac {
 	compatible = "allwinner,sun50i-h6-emac";
 	pinctrl-0 = <&rgmii_pg_pins>;
 	pinctrl-names = "default";
 	clocks = <&ccu CLK_BUS_EMAC>, <&ccu CLK_EMAC_25M>;
-	clock-names = "stmmaceth", "pclk";
+	clock-names = "stmmaceth", "ext25m_clk";
 	phy-mode = "rgmii-rxid";
 	phy-handle = <&phy0>;
 	allwinner,tx-delay-ps = <300>;
@@ -72,11 +71,10 @@
 
 &mdio {
 	phy0: ethernet-phy@0 {
-		reg=<0>;
+		reg = <0>;
 		motorcomm,clk-out-frequency-hz = <125000000>;
 		motorcomm,auto-sleep-disabled;
 		motorcomm,keep-pll-enabled;
 		rx-internal-delay-ps = <1050>;
-      };
-
+	};
 };
