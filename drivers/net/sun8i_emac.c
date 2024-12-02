@@ -163,6 +163,7 @@ struct emac_eth_dev {
 	struct phy_device *phydev;
 	struct mii_dev *bus;
 	struct clk tx_clk;
+	struct clk ext25m_clk;
 	struct clk ephy_clk;
 	struct reset_ctl tx_rst;
 	struct reset_ctl ephy_rst;
@@ -596,10 +597,19 @@ static int sun8i_emac_board_setup(struct udevice *dev,
 		}
 	}
 
+	if (clk_valid(&priv->ext25m_clk)) {
+		ret = clk_enable(&priv->ext25m_clk);
+		if (ret) {
+			dev_err(dev, "failed to enable ext25m clock\n");
+			return ret;
+		}
+	}
+
 	return 0;
 
 err_tx_clk:
 	clk_disable(&priv->tx_clk);
+
 	return ret;
 }
 
@@ -785,6 +795,11 @@ static int sun8i_emac_eth_of_to_plat(struct udevice *dev)
 	if (ret) {
 		dev_err(dev, "failed to get TX clock\n");
 		return ret;
+	}
+
+	ret = clk_get_by_name(dev, "ext25m_clk", &priv->ext25m_clk);
+	if (ret) {
+		dev_info(dev, "extern 25m clock not defined\n");
 	}
 
 	ret = reset_get_by_name(dev, "stmmaceth", &priv->tx_rst);
