@@ -972,7 +972,7 @@ int raft_user_gpios_init_r(void)
 		}
 	}
 
-	printf("Raft: user gpios init success\n");
+	printf("Raft:  user gpios init success\n");
 
 	return 0;
 }
