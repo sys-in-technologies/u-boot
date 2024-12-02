@@ -797,9 +797,10 @@ static int sun8i_emac_eth_of_to_plat(struct udevice *dev)
 		return ret;
 	}
 
-	ret = clk_get_by_name(dev, "ext25m_clk", &priv->ext25m_clk);
+	ret = clk_get_by_name_optional(dev, "ext25m_clk", &priv->ext25m_clk);
 	if (ret) {
-		dev_info(dev, "extern 25m clock not defined\n");
+		dev_err(dev, "failed to get extern 25m clock\n");
+		return ret;
 	}
 
 	ret = reset_get_by_name(dev, "stmmaceth", &priv->tx_rst);
