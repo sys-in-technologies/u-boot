@@ -852,9 +852,10 @@ int raft_user_gpios_init_r(void)
 	int node_offset;
 	int subnode_offset;
 	const char *pin;
-	const char *direction;
+	const char *function;
 	const char *subnode_name;
 	int value;
+	int delay;
 	int ret;
 	int gpio;
 
@@ -877,35 +878,6 @@ int raft_user_gpios_init_r(void)
 			continue;
 		}
 
-		direction = fdt_getprop(gd->fdt_blob,
-					subnode_offset, "direction", NULL);
-		if (!direction) {
-			printf("%s: Cannot get property: direction\n",
-				subnode_name);
-			continue;
-		}
-
-		if (!strcmp(direction, "output")) {
-			value = fdtdec_get_int(gd->fdt_blob,
-					       subnode_offset, "value", -1);
-			if (value == -1) {
-				printf("%s: Cannot get property: value\n",
-					subnode_name);
-				continue;
-			}
-
-			if (value != 0 && value != 1) {
-				printf("%s: value only 0 or 1\n", subnode_name);
-				continue;
-			}
-		} else if (!strcmp(direction, "input")) {
-			value = 0;
-		} else {
-			printf("%s: direction only input or output\n",
-				subnode_name);
-			continue;
-		}
-
 		ret = gpio_lookup_name(pin, NULL, NULL, &gpio);
 		if (ret) {
 			printf("gpio: %s not found\n", pin);
@@ -918,18 +890,89 @@ int raft_user_gpios_init_r(void)
 			continue;
 		}
 
-		if (!strcmp(direction, "output")) {
-			ret = gpio_direction_output(gpio, value);
-		} else {
-			ret = gpio_direction_input(gpio);
+		function = fdt_getprop(gd->fdt_blob, subnode_offset,
+				       "function", NULL);
+		if (!function) {
+			printf("%s: Cannot get property: function\n",
+			       subnode_name);
+			continue;
 		}
 
-		if (ret) {
-			printf("gpio: set direction pin %u failed\n", gpio);
+		if (!strcmp(function, "output")) {
+			value = fdtdec_get_int(gd->fdt_blob,
+					       subnode_offset, "value", -1);
+			if (value == -1) {
+				printf("%s: Cannot get property: value\n",
+					subnode_name);
+				continue;
+			}
+
+			if (value != 0 && value != 1) {
+				printf("%s: value only 0 or 1\n", subnode_name);
+				continue;
+			}
+
+			ret = gpio_direction_output(gpio, value);
+			if (ret) {
+				printf("pin %u set output failed\n", gpio);
+				continue;
+			}
+		} else if (!strcmp(function, "input")) {
+			ret = gpio_direction_input(gpio);
+			if (ret) {
+				printf("pin %u set input failed\n", gpio);
+				continue;
+			}
+		} else if (!strcmp(function, "reset")) {
+			value = fdtdec_get_int(gd->fdt_blob,
+					       subnode_offset, "value", -1);
+			if (value == -1) {
+				printf("%s: Cannot get property: value\n",
+					subnode_name);
+				continue;
+			}
+
+			if (value != 0 && value != 1) {
+				printf("%s: value only 0 or 1\n", subnode_name);
+				continue;
+			}
+
+			delay = fdtdec_get_int(gd->fdt_blob,
+					       subnode_offset, "keep_ms", -1);
+			if (value == -1) {
+				printf("%s: Cannot get property: keep_ms\n",
+					subnode_name);
+				continue;
+			}
+
+			ret = gpio_direction_output(gpio, !value);
+			if (ret) {
+				printf("pin %u set output failed\n", gpio);
+				continue;
+			}
+
+			udelay(delay * 1000);
+
+			ret = gpio_direction_output(gpio, value);
+			if (ret) {
+				printf("pin %u set output failed\n", gpio);
+				continue;
+			}
+
+			udelay(delay * 1000);
+
+			ret = gpio_direction_output(gpio, !value);
+			if (ret) {
+				printf("pin %u set output failed\n", gpio);
+				continue;
+			}
+		} else {
+			printf("%s: function %s unsupported\n",
+				subnode_name, function);
 		}
 	}
 
-	printf("raft user gpios init success\n");
+	printf("Raft: user gpios init success\n");
 
 	return 0;
 }
