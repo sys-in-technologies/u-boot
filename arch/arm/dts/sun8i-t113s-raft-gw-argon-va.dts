@@ -106,7 +106,7 @@
 			pin = "PD17";
 			function = "output";
 			value = <1>;
-		}
+		};
 
 		nd-full-gpios {
 			pin = "PD16";
