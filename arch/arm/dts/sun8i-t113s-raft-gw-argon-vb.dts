@@ -106,7 +106,7 @@
 			pin = "PD17";
 			function = "output";
 			value = <1>;
-		}
+		};
 
 		gps-rst-gpios {
 			pin = "PB3";
