@@ -10,7 +10,7 @@
 #include "sun8i-t113s.dtsi"
 
 / {
-	model = "Raft Gataway ARGON VA";
+	model = "Raft Gataway ARGON VB";
 	compatible = "allwinner,sun8i-t113s";
 
 	aliases {
@@ -73,7 +73,7 @@
 		wifi-pwr-gpios {
 			pin = "PC7";
 			function = "output";
-			value = <0>;
+			value = <1>;
 		};
 
 		4g-pwr-gpios {
@@ -85,22 +85,34 @@
 		4g-rst-gpios {
 			pin = "PC2";
 			function = "reset";
-			value = <1>;
+			value = <0>;
 			keep_ms = <100>;
 		};
 
 		tp-pwr-gpios {
 			pin = "PD18";
 			function = "output";
-			value = <0>;
+			value = <1>;
 		};
 
                 ephy-rst-gpios {
 			pin = "PG9";
 			function = "reset";
-			value = <1>;
+			value = <0>;
 			keep_ms = <100>;
 		};
+
+		gps-rst-gpios {
+			pin = "PB3";
+			function = "reset";
+			value = <0>;
+			keep_ms = <10>;
+		};
+
+		gps-pps-gpios {
+			pin = "PB2";
+			function = "input";
+		}
 
 		nd-full-gpios {
 			pin = "PD16";
