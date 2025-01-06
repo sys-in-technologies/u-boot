@@ -118,7 +118,7 @@
 		gps-pps-gpios {
 			pin = "PB2";
 			function = "input";
-		}
+		};
 
 		nd-full-gpios {
 			pin = "PD16";
