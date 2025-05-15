@@ -82,14 +82,12 @@
 			value = <1>;
 		};
 
-/*
 		4g-rst-gpios {
 			pin = "PE1";
 			function = "reset";
-			value = <0>;
+			value = <1>;
 			keep_ms = <100>;
 		};
-*/
 
                 ephy-rst-gpios {
 			pin = "PG9";
