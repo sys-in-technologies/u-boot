@@ -70,12 +70,20 @@ static int mmc_set_mod_clk(struct sunxi_mmc_priv *priv, unsigned int hz)
 	unsigned int pll, pll_hz, div, n, oclk_dly, sclk_dly;
 	bool new_mode = IS_ENABLED(CONFIG_MMC_SUNXI_HAS_NEW_MODE);
 	u32 val = 0;
+	unsigned int mod_hz = hz;
 
 	/* A83T support new mode only on eMMC */
 	if (IS_ENABLED(CONFIG_MACH_SUN8I_A83T) && priv->mmc_no != 2)
 		new_mode = false;
 
-	if (hz <= 24000000) {
+#ifdef CONFIG_CLK_SUN20I_D1
+	/* t113 actually use PERIPH0, as compensate for that with a fixed
+	 * post-divider of 2 in the mod clock, hz should multiply by 2
+	 */
+	mod_hz *= 2;
+#endif
+
+	if (mod_hz <= 24000000) {
 		pll = CCM_MMC_CTRL_OSCM24;
 		pll_hz = 24000000;
 	} else {
@@ -95,8 +103,8 @@ static int mmc_set_mod_clk(struct sunxi_mmc_priv *priv, unsigned int hz)
 #endif
 	}
 
-	div = pll_hz / hz;
-	if (pll_hz % hz)
+	div = pll_hz / mod_hz;
+	if (pll_hz % mod_hz)
 		div++;
 
 	n = 0;

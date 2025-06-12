@@ -147,7 +147,13 @@ unsigned int clock_get_pll6(void)
 	if (IS_ENABLED(CONFIG_SUNXI_GEN_NCAT2)) {
 		div1 = ((rval & CCM_PLL6_CTRL_P0_MASK) >>
 			CCM_PLL6_CTRL_P0_SHIFT) + 1;
-		m = 1;
+		/* t113 PLL_PERI(1X) = 24Mhz * N / M /P0 / 2, which M(div1)
+		 * P0(div2) 2(m)
+		 */
+		if (IS_ENABLED(CONFIG_CLK_SUN20I_D1))
+			m = 2;
+		else
+			m = 1;
 	} else {
 		div1 = ((rval & CCM_PLL6_CTRL_DIV1_MASK) >>
 			CCM_PLL6_CTRL_DIV1_SHIFT) + 1;
