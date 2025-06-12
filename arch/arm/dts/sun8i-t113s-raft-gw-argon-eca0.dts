@@ -10,7 +10,7 @@
 #include "sun8i-t113s.dtsi"
 
 / {
-	model = "Raft Gataway ARGON VB";
+	model = "Raft Gataway ARGON ECA0";
 	compatible = "allwinner,sun8i-t113s";
 
 	aliases {
