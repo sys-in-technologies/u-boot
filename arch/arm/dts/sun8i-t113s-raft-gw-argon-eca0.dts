@@ -64,12 +64,6 @@
 
 	raft-user-gpios {
 		compatible = "raft-user-gpios";
-		mesh-pwr-gpios {
-			pin = "PB2";
-			function = "output";
-			value = <1>;
-		};
-
 		wifi-pwr-gpios {
 			pin = "PG6";
 			function = "output";
@@ -89,18 +83,12 @@
 			keep_ms = <100>;
 		};
 
-                ephy-rst-gpios {
+		ephy-rst-gpios {
 			pin = "PG9";
 			function = "reset";
 			value = <0>;
 			keep_ms = <100>;
 		};
-
-                ble-reset-gpios {
-                        pin = "PD15";
-                        function = "output";
-                        value = <1>;
-                };
 	};
 };
 
