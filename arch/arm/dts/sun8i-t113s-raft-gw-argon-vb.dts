@@ -85,7 +85,7 @@
 		4g-rst-gpios {
 			pin = "PC2";
 			function = "reset";
-			value = <0>;
+			value = <1>;
 			keep_ms = <100>;
 		};
 
