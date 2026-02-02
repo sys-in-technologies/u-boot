@@ -4,6 +4,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/leds/common.h>
+#include <dt-bindings/pwm/pwm.h>
 
 /dts-v1/;
 
@@ -14,12 +15,12 @@
 	compatible = "allwinner,sun8i-t113s";
 
 	aliases {
-		serial0 = &uart0;
+                serial0 = &uart0;
 	};
 
-	chosen {
-		stdout-path = "serial0:115200n8";
-	};
+        chosen {
+               stdout-path = "serial0:115200n8";
+        };
 
 	/* board wide 5V supply directly from DC input */
 	reg_vcc5v: regulator-5v {
@@ -49,12 +50,49 @@
 	};
 
 	/* XC6206 LDO on the board */
-	reg_avdd2v8: regulator-avdd {
+	reg_2v8: regulator-vcc-panel {
 		compatible = "regulator-fixed";
-		regulator-name = "avdd2v8";
+		regulator-name = "vcc";
 		regulator-min-microvolt = <2800000>;
 		regulator-max-microvolt = <2800000>;
 		vin-supply = <&reg_3v3>;
+	};
+
+	/* XC6206 LDO on the board */
+	reg_1v8: regulator-vcc-dsi {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-dsi";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&reg_3v3>;
+	};
+
+	/* XC6206 LDO on the board, just for st7703 panel compatible */
+	st7703_iovcc {
+		compatible = "regulator-fixed";
+		regulator-name = "iovcc";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&reg_3v3>;
+	};
+
+
+	/* just for goodix-ts compatible */
+	ts_avdd28 {
+		compatible = "regulator-fixed";
+		regulator-name = "AVDD28";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vcc5v>;
+	};
+
+	/* just for goodix-ts compatible */
+	ts_vddio {
+		compatible = "regulator-fixed";
+		regulator-name = "VDDIO";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vcc5v>;
 	};
 
 	watchdog {
@@ -62,83 +100,74 @@
 		reg = <0x020500A0 0x20>;
 	};
 
-	raft-user-gpios {
-		compatible = "raft-user-gpios";
-		mesh-pwr-gpios {
-			pin = "PC6";
-			function = "output";
-			value = <1>;
-		};
-
-		wifi-pwr-gpios {
-			pin = "PC7";
-			function = "output";
-			value = <1>;
-		};
-
-		4g-pwr-gpios {
-			pin = "PC3";
-			function = "output";
-			value = <1>;
-		};
-
-		4g-rst-gpios {
-			pin = "PC2";
-			function = "reset";
-			value = <1>;
-			keep_ms = <100>;
-		};
-
-		tp-pwr-gpios {
-			pin = "PD18";
-			function = "output";
-			value = <1>;
-		};
-
-                ephy-rst-gpios {
-			pin = "PG9";
-			function = "reset";
-			value = <0>;
-			keep_ms = <100>;
-		};
-
-		backlight_en_gpios {
-			pin = "PD17";
-			function = "output";
-			value = <1>;
-		};
-
-		gps-rst-gpios {
-			pin = "PB3";
-			function = "reset";
-			value = <0>;
-			keep_ms = <10>;
-		};
-
-		gps-pps-gpios {
-			pin = "PB2";
-			function = "input";
-		};
-
-		nd-full-gpios {
-			pin = "PD16";
-			function = "input";
-		};
-
-		nd-empty-gpios {
-			pin = "PD15";
-			function = "input";
-		};
-
-		nd-mode-gpios {
-			pin = "PD14";
-			function = "input";
-		};
+	pwm: pwm@2000c00 {
+		compatible = "allwinner,sun8i-h3-pwm";
+		reg = <0x02000c00 0x400>;
+		clocks = <&dcxo>;
+		#pwm-cells = <3>;
+		status = "okay";
 	};
+
+	backlight: backlight {
+		   compatible = "pwm-backlight";
+		   pwms = <&pwm 0 100000 PWM_POLARITY_INVERTED>;
+		   power-supply = <&reg_vcc5v>;
+		   /* gpio not connect to real backligth */
+		   brightness-levels = <0 30 40 50 60 70 80 90 100>;
+		   default-brightness-level = <8>;
+	};
+
 };
- 
-&dcxo {
-	clock-frequency = <24000000>;
+
+&pio {
+	vcc-pc-supply = <&reg_3v3>;
+	vcc-pd-supply = <&reg_3v3>;
+	vcc-pe-supply = <&reg_3v3>;
+	vcc-pf-supply = <&reg_3v3>;
+	vcc-pg-supply = <&reg_3v3>;
+
+        rmii_pg_pins: rmii-pg-pins {
+	        pins = "PG0", "PG1", "PG2", "PG3", "PG4",
+	        "PG5", "PG6", "PG7", "PG8", "PG10",
+		"PG11", "PG12", "PG13", "PG14", "PG15";
+	        function = "emac";
+        };
+
+	uart1_pins: uart1-pins {
+		pins = "PE10", "PE11";
+		function = "uart1";
+	};
+
+	uart4_pins: uart4-pins {
+		pins = "PE4", "PE5";
+		function = "uart4";
+	};
+
+	uart5_pins: uart5-pins {
+		pins = "PB4", "PB5";
+		function = "uart5";
+	};
+
+	i2c2_pins: i2c2-pins {
+		pins = "PD20", "PD21";
+		function = "i2c2";
+	};
+
+	i2c3_pins: i2c3-pins {
+		pins = "PE6", "PE7";
+		function = "i2c3";
+	};
+
+	spi1_pins: spi1-pins {
+		pins = "PD10", "PD11", "PD12", "PD13";
+		function = "spi1";
+	};
+
+	pwm_pin: pwm-pin {
+		pins = "PD17";
+		function = "pwm";
+	};
+
 };
 
 &cpu0 {
@@ -149,10 +178,24 @@
 	cpu-supply = <&reg_vcc_core>;
 };
 
+&dcxo {
+	clock-frequency = <24000000>;
+};
+
 &pio {
 	uart0_pe_pins: uart0-pe-pins {
 		pins = "PE0", "PE1";
 		function = "uart0";
+	};
+
+	uart3_pb_pins: uart3-pb-pins {
+		pins = "PB6", "PB7";
+		function = "uart3";
+	};
+
+	mmc0_pins: mmc0-pins {
+		pins = "PF0", "PF1", "PF2", "PF3", "PF4", "PF5";
+		function = "mmc0";
 	};
 };
 
@@ -160,6 +203,30 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart0_pe_pins>;
 	status = "okay";
+};
+
+&uart1 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&uart1_pins>;
+        status = "okay";
+};
+
+&uart3 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&uart3_pb_pins>;
+        status = "okay";
+};
+
+&uart4 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&uart4_pins>;
+        status = "okay";
+};
+
+&uart5 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&uart5_pins>;
+        status = "okay";
 };
 
 &mmc0 {
@@ -171,27 +238,12 @@
 	status = "okay";
 };
 
-&pio {
-	vcc-pb-supply = <&reg_3v3>;
-	vcc-pd-supply = <&reg_3v3>;
-	vcc-pe-supply = <&reg_avdd2v8>;
-	vcc-pf-supply = <&reg_3v3>;
-	vcc-pg-supply = <&reg_3v3>;
-
-	rmii_pg_pins: rmii-pg-pins {
-		pins = "PG0", "PG1", "PG2", "PG3", "PG4",
-		"PG5", "PG6", "PG7", "PG8", "PG10", "PG11",
-		"PG12", "PG13", "PG14", "PG15";
-		function = "emac";
-	};
-};
-
 &emac {
 	compatible = "allwinner,sun50i-h6-emac";
 	pinctrl-names = "default";
 	pinctrl-0 = <&rmii_pg_pins>;
 	clocks = <&ccu CLK_BUS_EMAC>, <&ccu CLK_EMAC_25M>;
-	clock-names = "stmmaceth", "ext25m_clk";
+	clock-names = "stmmaceth", "pclk";
 	phy-mode = "rmii";
 	phy-handle = <&phy0>;
 	phy-supply = <&reg_3v3>;
@@ -199,27 +251,189 @@
 };
 
 &mdio {
-	phy0: ethernet-phy@0 {
-		reg = <0>;
-		motorcomm,auto-sleep-disabled;
-		motorcomm,keep-pll-enabled;
-	};
-};
-
-&ehci1 {
-	status = "okay";
-};
-
-&ohci1 {
-	status = "okay";
-};
-/* The USB-C socket has its CC pins pulled to GND, so is hardwired as a UFP. */
-&usb_otg {
-	dr_mode = "peripheral";
-	status = "okay";
+        phy0: ethernet-phy@0 {
+                reg = <0>;
+                motorcomm,clk-out-frequency-hz = <0>;
+                motorcomm,auto-sleep-disabled;
+                motorcomm,keep-pll-enabled;
+        };
 };
 
 &usbphy {
 	usb1_vbus-supply = <&reg_vcc5v>;
 	status = "okay";
 };
+
+&ehci1 {
+        status = "okay";
+};
+
+&ohci1 {
+        status = "okay";
+};
+
+&usb_otg {
+        status = "disable";
+};
+
+&i2c2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c2_pins>;
+
+	touchscreen@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		status = "okay";
+		interrupt-parent = <&pio>;
+		interrupts = <3 22 IRQ_TYPE_EDGE_FALLING>;
+		irq-flags = <2>;	/*1:rising 2: falling*/
+		irq-gpios = <&pio 3 22 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pio 3 19 GPIO_ACTIVE_LOW>;
+		/*touchscreen-swapped-x-y;*/
+	};
+};
+
+&i2c3 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c3_pins>;
+
+	24c04@50 {
+		compatible = "atmel,24c04";
+		label = "eeprom";
+		reg = <0x50>;
+		pagesize = <16>;
+		size = <256>;
+	};
+
+	rx8025@32 {
+		compatible = "epson,rx8025";
+		reg = <0x32>;
+	};
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi1_pins>;
+	spidev@0 {
+		compatible = "rohm,dh2228fv"; // trigger spidev binding.
+		reg = <0>;
+		spi-max-frequency = <15000000>;
+	};
+};
+
+&dsi {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	vcc-dsi-supply = <&reg_1v8>;
+
+#if 0
+	panel@0 {
+		compatible = "polcd,p050h031_desc", "sitronix,st7703";
+		reg = <0>;
+		vcc-supply = <&reg_2v8>;
+		iovcc-supply = <&reg_1v8>;
+		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
+		backlight = <&backlight>;
+		rotation = <270>;
+	};
+#endif
+
+#if 1
+	panel@0 {
+		compatible = "huadichuangxian,hd50004c30", "ilitek,ili9881c";
+		reg = <0>;
+		power-supply = <&reg_2v8>;
+		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
+		backlight = <&backlight>;
+	};
+#endif
+
+#if 0
+	panel@0 {
+		compatible = "mc101278007-40b", "ilitek,ili9881c";
+		reg = <0>;
+		power-supply = <&reg_2v8>;
+		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
+		backlight = <&backlight>;
+	};
+#endif
+
+#if 0
+	panel@0 {
+		compatible = "elitek,ek79007";
+		reg = <0>;
+		power-supply = <&reg_2v8>;
+		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
+		backlight = <&backlight>;
+	};
+#endif
+
+	port {
+		dsi_in_tcon_lcd0: endpoint {
+			remote-endpoint = <&tcon_lcd0_out_dsi>;
+		};
+	};
+};
+
+&de {
+	allwinner,pipelines = <&mixer0>;
+	status = "okay";
+};
+
+&mixer0 {
+	ports {
+		mixer0_out: port@1 {
+			mixer0_out_tcon_top_mixer0: endpoint {
+				remote-endpoint = <&tcon_top_mixer0_in_mixer0>;
+			};
+		};
+	};
+};
+
+/delete-node/ &mixer1;
+
+&tcon_top {
+	ports {
+		tcon_top_mixer0_in: port@0 {
+			tcon_top_mixer0_in_mixer0: endpoint {
+				remote-endpoint = <&mixer0_out_tcon_top_mixer0>;
+			};
+		};
+
+		tcon_top_mixer0_out: port@1 {
+			tcon_top_mixer0_out_tcon_lcd0: endpoint@0 {
+				remote-endpoint = <&tcon_lcd0_in_tcon_top_mixer0>;
+			};
+
+			/delete-node/ endpoint@2;
+		};
+		/delete-node/ port@2;
+		/delete-node/ port@3;
+		/delete-node/ port@4;
+		/delete-node/ port@5;
+	};
+};
+
+&tcon_lcd0 {
+	ports {
+		tcon_lcd0_in: port@0 {
+			tcon_lcd0_in_tcon_top_mixer0: endpoint@0 {
+				remote-endpoint = <&tcon_top_mixer0_out_tcon_lcd0>;
+			};
+
+			/delete-node/ endpoint@1;
+		};
+
+		tcon_lcd0_out: port@1 {
+			tcon_lcd0_out_dsi: endpoint@1 {
+				remote-endpoint = <&dsi_in_tcon_lcd0>;
+			};
+		};
+	};
+};
+
+/delete-node/ &tcon_tv0;
