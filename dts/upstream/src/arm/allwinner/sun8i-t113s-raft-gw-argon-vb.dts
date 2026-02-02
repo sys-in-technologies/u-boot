@@ -136,7 +136,7 @@
 		};
 	};
 };
-
+ 
 &dcxo {
 	clock-frequency = <24000000>;
 };
@@ -147,6 +147,13 @@
 
 &cpu1 {
 	cpu-supply = <&reg_vcc_core>;
+};
+
+&pio {
+	uart0_pe_pins: uart0-pe-pins {
+		pins = "PE0", "PE1";
+		function = "uart0";
+	};
 };
 
 &uart0 {
