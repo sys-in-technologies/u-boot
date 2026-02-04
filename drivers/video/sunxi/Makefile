@@ -4,4 +4,5 @@
 # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
 
 obj-$(CONFIG_VIDEO_SUNXI) += sunxi_display.o simplefb_common.o lcdc.o tve_common.o ../videomodes.o
-obj-$(CONFIG_VIDEO_DE2) += sunxi_de2.o sunxi_dw_hdmi.o simplefb_common.o lcdc.o sunxi_lcd.o
+obj-$(CONFIG_VIDEO_DE2) += sunxi_de2.o sunxi_dw_hdmi.o simplefb_common.o lcdc.o sunxi_lcd.o 
+obj-$(CONFIG_VIDEO_SUNXI_MIPI_DSI) += sunxi_mipi_dsi.o

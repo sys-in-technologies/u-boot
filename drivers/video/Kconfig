@@ -752,6 +752,16 @@ config VIDEO_LCD_SPI_MISO
 	option takes a string in the format understood by 'sunxi_name_to_gpio'
 	function, e.g. PH1 for pin 1 of port H.
 
+config VIDEO_SUNXI_MIPI_DSI
+	bool "Allwinner MIPI DSI support"
+	depends on VIDEO_MIPI_DSI && ARCH_SUNXI
+	select DM_VIDEO
+	help
+	  Enable support for the Allwinner MIPI DSI controller found in
+	  Allwinner SoCs like A31, A64, H6, and T113. This provides the
+	  controller driver that allows MIPI DSI panels to be connected to
+	  the display pipeline.
+
 source "drivers/video/meson/Kconfig"
 
 config VIDEO_MVEBU
