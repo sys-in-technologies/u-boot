@@ -183,6 +183,11 @@
 		"PG12", "PG13", "PG14", "PG15";
 		function = "emac";
 	};
+
+	uart0_pe_pins: uart0-pe-pins {
+		pins = "PE2", "PE3";
+		function = "uart0";
+	};
 };
 
 &emac {
