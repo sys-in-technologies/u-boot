@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Allwinner MIPI DSI header
+ *
+ * Copyright (C) 2018 Bootlin
+ * Copyright (C) 2026 U-Boot Port
+ */
+
+#ifndef _SUN6I_MIPI_DSI_H_
+#define _SUN6I_MIPI_DSI_H_
+
+#define SUN6I_DSI_CTL_REG 0x000
+#define SUN6I_DSI_CTL_EN BIT(0)
+
+#define SUN6I_DSI_BASIC_CTL_REG 0x00c
+#define SUN6I_DSI_BASIC_CTL_TRAIL_INV(n) (((n) & 0xf) << 4)
+#define SUN6I_DSI_BASIC_CTL_TRAIL_FILL BIT(3)
+#define SUN6I_DSI_BASIC_CTL_HBP_DIS BIT(2)
+#define SUN6I_DSI_BASIC_CTL_HSA_HSE_DIS BIT(1)
+#define SUN6I_DSI_BASIC_CTL_VIDEO_BURST BIT(0)
+
+#define SUN6I_DSI_BASIC_CTL0_REG 0x010
+#define SUN6I_DSI_BASIC_CTL0_HS_EOTP_EN BIT(18)
+#define SUN6I_DSI_BASIC_CTL0_CRC_EN BIT(17)
+#define SUN6I_DSI_BASIC_CTL0_ECC_EN BIT(16)
+#define SUN6I_DSI_BASIC_CTL0_INST_ST BIT(0)
+
+#define SUN6I_DSI_BASIC_CTL1_REG 0x014
+#define SUN6I_DSI_BASIC_CTL1_VIDEO_ST_DELAY(n) (((n) & 0x1fff) << 4)
+#define SUN6I_DSI_BASIC_CTL1_VIDEO_FILL BIT(2)
+#define SUN6I_DSI_BASIC_CTL1_VIDEO_PRECISION BIT(1)
+#define SUN6I_DSI_BASIC_CTL1_VIDEO_MODE BIT(0)
+
+#define SUN6I_DSI_BASIC_SIZE0_REG 0x018
+#define SUN6I_DSI_BASIC_SIZE0_VBP(n) (((n) & 0xfff) << 16)
+#define SUN6I_DSI_BASIC_SIZE0_VSA(n) ((n) & 0xfff)
+
+#define SUN6I_DSI_BASIC_SIZE1_REG 0x01c
+#define SUN6I_DSI_BASIC_SIZE1_VT(n) (((n) & 0xfff) << 16)
+#define SUN6I_DSI_BASIC_SIZE1_VACT(n) ((n) & 0xfff)
+
+#define SUN6I_DSI_INST_FUNC_REG(n) (0x020 + (n) * 0x04)
+#define SUN6I_DSI_INST_FUNC_INST_MODE(n) (((n) & 0xf) << 28)
+#define SUN6I_DSI_INST_FUNC_ESCAPE_ENTRY(n) (((n) & 0xf) << 24)
+#define SUN6I_DSI_INST_FUNC_TRANS_PACKET(n) (((n) & 0xf) << 20)
+#define SUN6I_DSI_INST_FUNC_LANE_CEN BIT(4)
+#define SUN6I_DSI_INST_FUNC_LANE_DEN(n) ((n) & 0xf)
+
+#define SUN6I_DSI_INST_LOOP_SEL_REG 0x040
+
+#define SUN6I_DSI_INST_LOOP_NUM_REG(n) (0x044 + (n) * 0x10)
+#define SUN6I_DSI_INST_LOOP_NUM_N1(n) (((n) & 0xfff) << 16)
+#define SUN6I_DSI_INST_LOOP_NUM_N0(n) ((n) & 0xfff)
+
+#define SUN6I_DSI_INST_JUMP_SEL_REG 0x048
+
+#define SUN6I_DSI_INST_JUMP_CFG_REG(n) (0x04c + (n) * 0x04)
+#define SUN6I_DSI_INST_JUMP_CFG_TO(n) (((n) & 0xf) << 20)
+#define SUN6I_DSI_INST_JUMP_CFG_POINT(n) (((n) & 0xf) << 16)
+#define SUN6I_DSI_INST_JUMP_CFG_NUM(n) ((n) & 0xffff)
+
+#define SUN6I_DSI_TRANS_START_REG 0x060
+
+#define SUN6I_DSI_TRANS_ZERO_REG 0x078
+
+#define SUN6I_DSI_TCON_DRQ_REG 0x07c
+#define SUN6I_DSI_TCON_DRQ_ENABLE_MODE BIT(28)
+#define SUN6I_DSI_TCON_DRQ_SET(n) ((n) & 0x3ff)
+
+#define SUN6I_DSI_PIXEL_CTL0_REG 0x080
+#define SUN6I_DSI_PIXEL_CTL0_PD_PLUG_DISABLE BIT(16)
+#define SUN6I_DSI_PIXEL_CTL0_FORMAT(n) ((n) & 0xf)
+
+#define SUN6I_DSI_PIXEL_CTL1_REG 0x084
+
+#define SUN6I_DSI_PIXEL_PH_REG 0x090
+#define SUN6I_DSI_PIXEL_PH_ECC(n) (((n) & 0xff) << 24)
+#define SUN6I_DSI_PIXEL_PH_WC(n) (((n) & 0xffff) << 8)
+#define SUN6I_DSI_PIXEL_PH_VC(n) (((n) & 3) << 6)
+#define SUN6I_DSI_PIXEL_PH_DT(n) ((n) & 0x3f)
+
+#define SUN6I_DSI_PIXEL_PF0_REG 0x098
+#define SUN6I_DSI_PIXEL_PF0_CRC_FORCE(n) ((n) & 0xffff)
+
+#define SUN6I_DSI_PIXEL_PF1_REG 0x09c
+#define SUN6I_DSI_PIXEL_PF1_CRC_INIT_LINEN(n) (((n) & 0xffff) << 16)
+#define SUN6I_DSI_PIXEL_PF1_CRC_INIT_LINE0(n) ((n) & 0xffff)
+
+#define SUN6I_DSI_SYNC_HSS_REG 0x0b0
+#define SUN6I_DSI_SYNC_HSE_REG 0x0b4
+#define SUN6I_DSI_SYNC_VSS_REG 0x0b8
+#define SUN6I_DSI_SYNC_VSE_REG 0x0bc
+
+#define SUN6I_DSI_BLK_HSA0_REG 0x0c0
+#define SUN6I_DSI_BLK_HSA1_REG 0x0c4
+#define SUN6I_DSI_BLK_PF(n) (((n) & 0xffff) << 16)
+#define SUN6I_DSI_BLK_PD(n) ((n) & 0xff)
+
+#define SUN6I_DSI_BLK_HBP0_REG 0x0c8
+#define SUN6I_DSI_BLK_HBP1_REG 0x0cc
+#define SUN6I_DSI_BLK_HFP0_REG 0x0d0
+#define SUN6I_DSI_BLK_HFP1_REG 0x0d4
+
+#define SUN6I_DSI_BLK_HBLK0_REG 0x0e0
+#define SUN6I_DSI_BLK_HBLK1_REG 0x0e4
+
+#define SUN6I_DSI_BLK_VBLK0_REG 0x0e8
+#define SUN6I_DSI_BLK_VBLK1_REG 0x0ec
+
+#define SUN6I_DSI_BURST_LINE_REG 0x0f0
+#define SUN6I_DSI_BURST_LINE_SYNC_POINT(n) (((n) & 0xffff) << 16)
+#define SUN6I_DSI_BURST_LINE_NUM(n) ((n) & 0xffff)
+
+#define SUN6I_DSI_BURST_DRQ_REG 0x0f4
+#define SUN6I_DSI_BURST_DRQ_EDGE1(n) (((n) & 0xffff) << 16)
+#define SUN6I_DSI_BURST_DRQ_EDGE0(n) ((n) & 0xffff)
+
+#define SUN6I_DSI_CMD_CTL_REG 0x200
+#define SUN6I_DSI_CMD_CTL_RX_OVERFLOW BIT(26)
+#define SUN6I_DSI_CMD_CTL_RX_FLAG BIT(25)
+#define SUN6I_DSI_CMD_CTL_TX_FLAG BIT(9)
+
+#define SUN6I_DSI_CMD_RX_REG(n) (0x240 + (n) * 0x04)
+
+#define SUN6I_DSI_DEBUG_DATA_REG 0x2f8
+
+#define SUN6I_DSI_CMD_TX_REG(n) (0x300 + (n) * 0x04)
+
+#define SUN6I_DSI_SYNC_POINT 40
+
+enum sun6i_dsi_start_inst {
+  DSI_START_LPRX,
+  DSI_START_LPTX,
+  DSI_START_HSC,
+  DSI_START_HSD,
+};
+
+enum sun6i_dsi_inst_id {
+  DSI_INST_ID_LP11 = 0,
+  DSI_INST_ID_TBA,
+  DSI_INST_ID_HSC,
+  DSI_INST_ID_HSD,
+  DSI_INST_ID_LPDT,
+  DSI_INST_ID_HSCEXIT,
+  DSI_INST_ID_NOP,
+  DSI_INST_ID_DLY,
+  DSI_INST_ID_END = 15,
+};
+
+enum sun6i_dsi_inst_mode {
+  DSI_INST_MODE_STOP = 0,
+  DSI_INST_MODE_TBA,
+  DSI_INST_MODE_HS,
+  DSI_INST_MODE_ESCAPE,
+  DSI_INST_MODE_HSCEXIT,
+  DSI_INST_MODE_NOP,
+};
+
+enum sun6i_dsi_inst_escape {
+  DSI_INST_ESCA_LPDT = 0,
+  DSI_INST_ESCA_ULPS,
+  DSI_INST_ESCA_UN1,
+  DSI_INST_ESCA_UN2,
+  DSI_INST_ESCA_RESET,
+  DSI_INST_ESCA_UN3,
+  DSI_INST_ESCA_UN4,
+  DSI_INST_ESCA_UN5,
+};
+
+enum sun6i_dsi_inst_packet {
+  DSI_INST_PACK_PIXEL = 0,
+  DSI_INST_PACK_COMMAND,
+};
+
+#endif /* _SUN6I_MIPI_DSI_H_ */

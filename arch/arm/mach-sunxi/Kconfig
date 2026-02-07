@@ -476,6 +476,7 @@ config MACH_SUN8I_R528
 	select SUPPORT_SPL
 	select DRAM_SUN20I_D1
 	imply OF_UPSTREAM
+	select SUNXI_DE2
 
 config MACH_SUN8I_V3S
 	bool "sun8i (Allwinner V3/V3s/S3/S3L)"
@@ -1106,6 +1107,13 @@ config VIDEO_LCD_IF_PARALLEL
 config VIDEO_LCD_IF_LVDS
 	bool
 
+config VIDEO_LCD_DSI_TX
+	bool "MIPI DSI transmission driver"
+	depends on VIDEO_SUNXI || VIDEO_DE2
+	select VIDEO_MIPI_DSI
+	help
+	  This enables support for MIPI DSI transmission on Allwinner SoCs.
+
 config SUNXI_DE2
 	bool
 
@@ -1114,7 +1122,7 @@ config VIDEO_DE2
 	depends on SUNXI_DE2
 	select VIDEO
 	select DISPLAY
-	select VIDEO_DW_HDMI
+	imply VIDEO_DW_HDMI if !MACH_SUN8I_R528
 	imply VIDEO_DT_SIMPLEFB
 	default y
 	---help---

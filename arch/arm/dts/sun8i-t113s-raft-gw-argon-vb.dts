@@ -135,6 +135,12 @@
 			function = "input";
 		};
 	};
+
+	backlight: backlight {
+		compatible = "gpio-backlight";
+		gpios = <&pio 3 17 0>; /* PD17 */
+		default-on;
+	};
 };
 
 &dcxo {
@@ -216,3 +222,29 @@
 	usb1_vbus-supply = <&reg_vcc5v>;
 	status = "okay";
 };
+
+&dphy {
+	status = "okay";
+};
+
+&dsi {
+	status = "okay";
+
+	panel@0 {
+		compatible = "raydium,rm68200";
+		reg = <0>;
+		reset-gpios = <&pio 3 14 1>; /* PD14 */
+		backlight = <&backlight>;
+		status = "okay";
+	};
+};
+
+&tcon_top {
+	status = "okay";
+};
+
+&tcon_lcd0 {
+	status = "okay";
+};
+
+
