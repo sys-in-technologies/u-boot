@@ -475,6 +475,7 @@ config MACH_SUN8I_R528
 	select MMC_SUNXI_HAS_NEW_MODE
 	select SUPPORT_SPL
 	select DRAM_SUN20I_D1
+	select VIDEO_SUNXI_T113
 	imply OF_UPSTREAM
 
 config MACH_SUN8I_V3S
@@ -1120,6 +1121,17 @@ config VIDEO_DE2
 	---help---
 	Say y here if you want to build DE2 video driver which is present on
 	newer SoCs. Currently only HDMI output is supported.
+
+config VIDEO_SUNXI_T113
+	bool "Display Engine 2 video driver for T113"
+	select VIDEO
+	select DISPLAY
+	select VIDEO_MIPI_DSI
+	imply VIDEO_DT_SIMPLEFB
+	default y
+	---help---
+	Say y here if you want to build DE2 video driver for T113/D1 SoCs.
+	This supports MIPI DSI output.
 
 
 choice

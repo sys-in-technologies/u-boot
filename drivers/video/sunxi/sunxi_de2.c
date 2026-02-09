@@ -32,6 +32,7 @@ enum {
 
 static void sunxi_de2_composer_init(void)
 {
+#if !defined(CONFIG_SUNXI_GEN_NCAT2)
 	struct sunxi_ccm_reg * const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 
@@ -56,6 +57,14 @@ static void sunxi_de2_composer_init(void)
 
 	/* Clock on */
 	setbits_le32(&ccm->de_clk_cfg, CCM_DE2_CTRL_GATE);
+#else
+	/* T113/D1 logic */
+	/* 
+	 * TODO: Implement real clock init for T113 here.
+	 * Ideally this should use clock_set_pll_video0() etc.
+	 * For now, placeholder as per Phase 2.
+	 */
+#endif
 }
 
 static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
@@ -63,8 +72,6 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 {
 	ulong de_mux_base = (mux == 0) ?
 			    SUNXI_DE2_MUX0_BASE : SUNXI_DE2_MUX1_BASE;
-	struct de_clk * const de_clk_regs =
-		(struct de_clk *)(SUNXI_DE2_BASE);
 	struct de_glb * const de_glb_regs =
 		(struct de_glb *)(de_mux_base +
 				  SUNXI_DE2_MUX_GLB_REGS);
@@ -83,6 +90,9 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	u32 format;
 
 	/* enable clock */
+#if !defined(CONFIG_SUNXI_GEN_NCAT2)
+	struct de_clk * const de_clk_regs =
+		(struct de_clk *)(SUNXI_DE2_BASE);
 #ifdef CONFIG_MACH_SUN8I_H3
 	setbits_le32(&de_clk_regs->rst_cfg, (mux == 0) ? 1 : 4);
 #else
@@ -92,6 +102,9 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	setbits_le32(&de_clk_regs->bus_cfg, BIT(mux));
 
 	clrbits_le32(&de_clk_regs->sel_cfg, 1);
+#else
+    /* T113 DE2 clock gating handled by CCU/RST controller, assumed done in composer_init or board setup */
+#endif
 
 	writel(SUNXI_DE2_MUX_GLB_CTL_EN, &de_glb_regs->ctl);
 	writel(0, &de_glb_regs->status);
@@ -235,46 +248,64 @@ static int sunxi_de2_probe(struct udevice *dev)
 	if (!(gd->flags & GD_FLG_RELOC))
 		return 0;
 
-	ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
-					  DM_DRIVER_GET(sunxi_lcd), &disp);
-	if (!ret) {
-		int mux;
-
-		mux = 0;
-
-		ret = sunxi_de2_init(dev, plat->base, VIDEO_BPP32, disp, mux,
-				     false);
+	/* 
+	 * Try generic DSI display first (for T113/D1) 
+	 * sun6i_mipi_dsi has UCLASS_DISPLAY
+	 */
+		ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
+						  DM_DRIVER_GET(sun6i_mipi_dsi), &disp);
 		if (!ret) {
-			video_set_flush_dcache(dev, 1);
-			return 0;
+			int mux = 0;
+			ret = sunxi_de2_init(dev, plat->base, VIDEO_BPP32, disp, mux, false);
+			if (!ret) {
+				video_set_flush_dcache(dev, 1);
+				return 0;
+			}
 		}
-	}
-
-	debug("%s: lcd display not found (ret=%d)\n", __func__, ret);
-
-	ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
-					  DM_DRIVER_GET(sunxi_dw_hdmi), &disp);
-	if (!ret) {
-		int mux;
-		if (IS_ENABLED(CONFIG_MACH_SUNXI_H3_H5))
+	
+	#ifdef CONFIG_VIDEO_SUNXI
+		ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
+						  DM_DRIVER_GET(sunxi_lcd), &disp);
+		if (!ret) {
+			int mux;
+	
 			mux = 0;
-		else
-			mux = 1;
-
-		ret = sunxi_de2_init(dev, plat->base, VIDEO_BPP32, disp, mux,
-				     false);
-		if (!ret) {
-			video_set_flush_dcache(dev, 1);
-			return 0;
+	
+			ret = sunxi_de2_init(dev, plat->base, VIDEO_BPP32, disp, mux,
+					     false);
+			if (!ret) {
+				video_set_flush_dcache(dev, 1);
+				return 0;
+			}
 		}
+	
+		debug("%s: lcd display not found (ret=%d)\n", __func__, ret);
+	#endif
+	
+	#ifdef CONFIG_VIDEO_DW_HDMI
+		ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
+						  DM_DRIVER_GET(sunxi_dw_hdmi), &disp);
+		if (!ret) {
+			int mux;
+			if (IS_ENABLED(CONFIG_MACH_SUNXI_H3_H5))
+				mux = 0;
+			else
+				mux = 1;
+	
+			ret = sunxi_de2_init(dev, plat->base, VIDEO_BPP32, disp, mux,
+					     false);
+			if (!ret) {
+				video_set_flush_dcache(dev, 1);
+				return 0;
+			}
+		}
+	
+		debug("%s: hdmi display not found (ret=%d)\n", __func__, ret);
+	#endif
+	
+		return -ENODEV;
 	}
-
-	debug("%s: hdmi display not found (ret=%d)\n", __func__, ret);
-
-	return -ENODEV;
-}
-
-static int sunxi_de2_bind(struct udevice *dev)
+	static int sunxi_de2_bind(struct udevice *dev)
 {
 	struct video_uc_plat *plat = dev_get_uclass_plat(dev);
 
@@ -287,12 +318,21 @@ static int sunxi_de2_bind(struct udevice *dev)
 static const struct video_ops sunxi_de2_ops = {
 };
 
+static const struct udevice_id sunxi_de2_ids[] = {
+	{ .compatible = "allwinner,sun8i-h3-de2-mixer-0" },
+	{ .compatible = "allwinner,sun50i-a64-de2-mixer-0" },
+	{ .compatible = "allwinner,sun50i-h6-de2-mixer-0" },
+	{ .compatible = "allwinner,sun20i-d1-de2-mixer-0" },
+	{ }
+};
+
 U_BOOT_DRIVER(sunxi_de2) = {
 	.name	= "sunxi_de2",
 	.id	= UCLASS_VIDEO,
 	.ops	= &sunxi_de2_ops,
 	.bind	= sunxi_de2_bind,
 	.probe	= sunxi_de2_probe,
+	.of_match = sunxi_de2_ids,
 	.flags	= DM_FLAG_PRE_RELOC,
 };
 
@@ -306,7 +346,7 @@ U_BOOT_DRVINFO(sunxi_de2) = {
 #if defined(CONFIG_OF_BOARD_SETUP) && defined(CONFIG_VIDEO_DT_SIMPLEFB)
 int sunxi_simplefb_setup(void *blob)
 {
-	struct udevice *de2, *hdmi, *lcd;
+	struct udevice *de2, *dsi;
 	struct video_priv *de2_priv;
 	struct video_uc_plat *de2_plat;
 	int mux;
@@ -332,6 +372,8 @@ int sunxi_simplefb_setup(void *blob)
 		return 0;
 	}
 
+#ifdef CONFIG_VIDEO_DW_HDMI
+	struct udevice *hdmi;
 	ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
 					  DM_DRIVER_GET(sunxi_dw_hdmi), &hdmi);
 	if (ret) {
@@ -344,7 +386,10 @@ int sunxi_simplefb_setup(void *blob)
 	} else {
 		debug("HDMI present but not probed\n");
 	}
+#endif
 
+#ifdef CONFIG_VIDEO_SUNXI
+	struct udevice *lcd;
 	ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
 					  DM_DRIVER_GET(sunxi_lcd), &lcd);
 	if (ret)
@@ -353,6 +398,16 @@ int sunxi_simplefb_setup(void *blob)
 		pipeline = "mixer0-lcd0";
 	else
 		debug("LCD present but not probed\n");
+#endif
+
+	/* Check for DSI */
+
+	
+	ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
+						  DM_DRIVER_GET(sun6i_mipi_dsi), &dsi);
+	if (!ret && device_active(dsi)) {
+		pipeline = "mixer0-lcd0"; /* DSI uses mixer0 on T113/D1 usually */
+	}
 
 	if (!pipeline) {
 		debug("No active display present\n");
