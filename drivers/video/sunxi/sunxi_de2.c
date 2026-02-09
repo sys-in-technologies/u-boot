@@ -59,11 +59,40 @@ static void sunxi_de2_composer_init(void)
 	setbits_le32(&ccm->de_clk_cfg, CCM_DE2_CTRL_GATE);
 #else
 	/* T113/D1 logic */
-	/* 
-	 * TODO: Implement real clock init for T113 here.
-	 * Ideally this should use clock_set_pll_video0() etc.
-	 * For now, placeholder as per Phase 2.
-	 */
+	uint32_t *ccm = (uint32_t *)SUNXI_CCM_BASE;
+	uint32_t *tcon_top = (uint32_t *)SUNXI_TCON_TOP_BASE;
+
+	/* 1. Enable PLL_VIDEO0 (default 288MHz) */
+	setbits_le32(ccm + (0x40 / 4), BIT(31) | BIT(30)); // EN | LDO_EN
+	while (!(readl(ccm + (0x40 / 4)) & BIT(28))) ; // Wait for LOCK
+	setbits_le32(ccm + (0x40 / 4), BIT(27)); // OUT_EN
+
+	/* 2. Enable DE BUS clock and reset */
+	writel(BIT(16) | BIT(0), ccm + (0x60c / 4)); // RST_DE deassert | GATE_DE enable
+	
+	/* 3. DE mod clock: SRC=PLL_VIDEO0_4X (0), M=1 */
+	writel(BIT(31) | (0 << 24), ccm + (0x600 / 4)); // EN | SRC=PLL_VIDEO0_4X
+	
+	/* 4. TCON_TOP (DPSS_TOP) */
+	writel(BIT(16) | BIT(0), ccm + (0xabc / 4)); // RST_DPSS deassert | GATE_DPSS enable
+	
+	/* 5. TCON LCD0 */
+	writel(BIT(16) | BIT(0), ccm + (0xb7c / 4)); // RST_TCON deassert | GATE_TCON enable
+	/* SRC=PLL_VIDEO0 (0), M=1 */
+	writel(BIT(31) | (0 << 24), ccm + (0xb60 / 4)); // EN | SRC=PLL_VIDEO0
+	
+	/* 6. MIPI DSI */
+	writel(BIT(16) | BIT(0), ccm + (0xb4c / 4)); // RST_DSI deassert | GATE_DSI enable
+	/* SRC=PLL_VIDEO0_2X (2), M=1 */
+	writel(BIT(31) | (2 << 24), ccm + (0xb24 / 4)); // EN | SRC=PLL_VIDEO0_2X
+
+	/* 7. MBUS and DRAM BUS for DE */
+	setbits_le32(ccm + (0x804 / 4), BIT(0)); // MBUS_DE_GATE
+	setbits_le32(ccm + (0x80c / 4), BIT(0)); // BUS_DRAM_GATE
+
+	/* 8. TCON_TOP Routing: Mixer 0 to TCON LCD 0 */
+	clrbits_le32(tcon_top + (0x1c / 4), 0x3); 
+	setbits_le32(tcon_top + (0x20 / 4), BIT(16)); // DSI_GATE
 #endif
 }
 
