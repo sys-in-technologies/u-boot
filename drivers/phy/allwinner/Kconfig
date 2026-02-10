@@ -26,6 +26,16 @@ config INITIAL_USB_SCAN_DELAY
 	  this option to a nonzero value to add an extra delay before
 	  the first USB bus scan.
 
+config PHY_SUN6I_MIPI_DPHY
+	bool "Allwinner sun6i MIPI D-PHY driver"
+	depends on ARCH_SUNXI
+	select PHY
+	select MIPI_DPHY_HELPERS
+	help
+	  Enable this to support the MIPI D-PHY transceiver found in
+	  Allwinner SoCs (A31, A100, D1, T113-S, etc.). This is required
+	  for MIPI DSI display output.
+
 config PHY_SUN50I_USB3
 	bool "Allwinner sun50i USB3 PHY driver"
 	depends on ARCH_SUNXI

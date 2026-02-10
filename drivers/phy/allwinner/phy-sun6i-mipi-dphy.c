@@ -1,0 +1,443 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2016 Allwinnertech Co., Ltd.
+ * Copyright (C) 2017-2018 Bootlin
+ * Copyright (C) 2026 Project Splash - Backported to U-Boot
+ *
+ * Maxime Ripard <maxime.ripard@free-electrons.com>
+ */
+
+#include <clk.h>
+#include <dm.h>
+#include <generic-phy.h>
+#include <log.h>
+#include <reset.h>
+#include <asm/io.h>
+#include <dm/device_compat.h>
+#include <linux/bitops.h>
+#include <linux/delay.h>
+#include <linux/log2.h>
+
+#include <phy-mipi-dphy.h>
+
+#define SUN6I_DPHY_GCTL_REG		0x00
+#define SUN6I_DPHY_GCTL_LANE_NUM(n)		((((n) - 1) & 3) << 4)
+#define SUN6I_DPHY_GCTL_EN			BIT(0)
+
+#define SUN6I_DPHY_TX_CTL_REG		0x04
+#define SUN6I_DPHY_TX_CTL_HS_TX_CLK_CONT	BIT(28)
+
+#define SUN6I_DPHY_TX_TIME0_REG		0x10
+#define SUN6I_DPHY_TX_TIME0_HS_TRAIL(n)		(((n) & 0xff) << 24)
+#define SUN6I_DPHY_TX_TIME0_HS_PREPARE(n)	(((n) & 0xff) << 16)
+#define SUN6I_DPHY_TX_TIME0_LP_CLK_DIV(n)	((n) & 0xff)
+
+#define SUN6I_DPHY_TX_TIME1_REG		0x14
+#define SUN6I_DPHY_TX_TIME1_CLK_POST(n)		(((n) & 0xff) << 24)
+#define SUN6I_DPHY_TX_TIME1_CLK_PRE(n)		(((n) & 0xff) << 16)
+#define SUN6I_DPHY_TX_TIME1_CLK_ZERO(n)		(((n) & 0xff) << 8)
+#define SUN6I_DPHY_TX_TIME1_CLK_PREPARE(n)	((n) & 0xff)
+
+#define SUN6I_DPHY_TX_TIME2_REG		0x18
+#define SUN6I_DPHY_TX_TIME2_CLK_TRAIL(n)	((n) & 0xff)
+
+#define SUN6I_DPHY_TX_TIME3_REG		0x1c
+
+#define SUN6I_DPHY_TX_TIME4_REG		0x20
+#define SUN6I_DPHY_TX_TIME4_HS_TX_ANA1(n)	(((n) & 0xff) << 8)
+#define SUN6I_DPHY_TX_TIME4_HS_TX_ANA0(n)	((n) & 0xff)
+
+#define SUN6I_DPHY_ANA0_REG		0x4c
+#define SUN6I_DPHY_ANA0_REG_PWS			BIT(31)
+#define SUN6I_DPHY_ANA0_REG_DMPC		BIT(28)
+#define SUN6I_DPHY_ANA0_REG_DMPD(n)		(((n) & 0xf) << 24)
+#define SUN6I_DPHY_ANA0_REG_SLV(n)		(((n) & 7) << 12)
+#define SUN6I_DPHY_ANA0_REG_DEN(n)		(((n) & 0xf) << 8)
+#define SUN6I_DPHY_ANA0_REG_PLR(n)		(((n) & 0xf) << 4)
+#define SUN6I_DPHY_ANA0_REG_SFB(n)		(((n) & 3) << 2)
+
+#define SUN6I_DPHY_ANA1_REG		0x50
+#define SUN6I_DPHY_ANA1_REG_VTTMODE		BIT(31)
+#define SUN6I_DPHY_ANA1_REG_CSMPS(n)		(((n) & 3) << 28)
+#define SUN6I_DPHY_ANA1_REG_SVTT(n)		(((n) & 0xf) << 24)
+
+#define SUN6I_DPHY_ANA2_REG		0x54
+#define SUN6I_DPHY_ANA2_EN_P2S_CPU(n)		(((n) & 0xf) << 24)
+#define SUN6I_DPHY_ANA2_EN_P2S_CPU_MASK		GENMASK(27, 24)
+#define SUN6I_DPHY_ANA2_EN_CK_CPU		BIT(4)
+#define SUN6I_DPHY_ANA2_REG_ENIB		BIT(1)
+
+#define SUN6I_DPHY_ANA3_REG		0x58
+#define SUN6I_DPHY_ANA3_EN_VTTD(n)		(((n) & 0xf) << 28)
+#define SUN6I_DPHY_ANA3_EN_VTTD_MASK		GENMASK(31, 28)
+#define SUN6I_DPHY_ANA3_EN_VTTC			BIT(27)
+#define SUN6I_DPHY_ANA3_EN_DIV			BIT(26)
+#define SUN6I_DPHY_ANA3_EN_LDOC			BIT(25)
+#define SUN6I_DPHY_ANA3_EN_LDOD			BIT(24)
+#define SUN6I_DPHY_ANA3_EN_LDOR			BIT(18)
+
+#define SUN6I_DPHY_ANA4_REG		0x5c
+#define SUN6I_DPHY_ANA4_REG_EN_MIPI		BIT(31)
+#define SUN6I_DPHY_ANA4_REG_IB(n)		(((n) & 3) << 25)
+#define SUN6I_DPHY_ANA4_REG_DMPLVC		BIT(24)
+#define SUN6I_DPHY_ANA4_REG_DMPLVD(n)		(((n) & 0xf) << 20)
+#define SUN6I_DPHY_ANA4_REG_VTT_SET(n)		(((n) & 0x7) << 17)
+#define SUN6I_DPHY_ANA4_REG_CKDV(n)		(((n) & 0x1f) << 12)
+#define SUN6I_DPHY_ANA4_REG_TMSC(n)		(((n) & 3) << 10)
+#define SUN6I_DPHY_ANA4_REG_TMSD(n)		(((n) & 3) << 8)
+#define SUN6I_DPHY_ANA4_REG_TXDNSC(n)		(((n) & 3) << 6)
+#define SUN6I_DPHY_ANA4_REG_TXDNSD(n)		(((n) & 3) << 4)
+#define SUN6I_DPHY_ANA4_REG_TXPUSC(n)		(((n) & 3) << 2)
+#define SUN6I_DPHY_ANA4_REG_TXPUSD(n)		((n) & 3)
+
+#define SUN50I_DPHY_PLL_REG0		0x104
+#define SUN50I_DPHY_PLL_REG0_CP36_EN		BIT(23)
+#define SUN50I_DPHY_PLL_REG0_LDO_EN		BIT(22)
+#define SUN50I_DPHY_PLL_REG0_EN_LVS		BIT(21)
+#define SUN50I_DPHY_PLL_REG0_PLL_EN		BIT(20)
+#define SUN50I_DPHY_PLL_REG0_P(n)		(((n) & 0xf) << 16)
+#define SUN50I_DPHY_PLL_REG0_N(n)		(((n) & 0xff) << 8)
+#define SUN50I_DPHY_PLL_REG0_NDET		BIT(7)
+#define SUN50I_DPHY_PLL_REG0_M0(n)		(((n) & 3) << 4)
+#define SUN50I_DPHY_PLL_REG0_M1(n)		((n) & 0xf)
+
+#define SUN50I_DPHY_PLL_REG1		0x108
+
+#define SUN50I_DPHY_PLL_REG2		0x10c
+
+#define SUN50I_COMBO_PHY_REG0		0x110
+#define SUN50I_COMBO_PHY_REG0_EN_MIPI		BIT(3)
+#define SUN50I_COMBO_PHY_REG0_EN_COMBOLDO	BIT(1)
+#define SUN50I_COMBO_PHY_REG0_EN_CP		BIT(0)
+
+#define SUN50I_COMBO_PHY_REG2		0x118
+#define SUN50I_COMBO_PHY_REG2_HS_STOP_DLY(n)	((n) & 0xff)
+
+enum sun6i_dphy_type {
+	SUN6I_DPHY_VARIANT_A31,
+	SUN6I_DPHY_VARIANT_A100,
+};
+
+struct sun6i_dphy_priv {
+	void __iomem *regs;
+	struct clk mod_clk;
+	struct reset_ctl reset;
+	struct phy_configure_opts_mipi_dphy config;
+	enum sun6i_dphy_type variant;
+};
+
+static void sun6i_dphy_write(struct sun6i_dphy_priv *priv, u32 reg, u32 val)
+{
+	writel(val, priv->regs + reg);
+}
+
+static u32 sun6i_dphy_read(struct sun6i_dphy_priv *priv, u32 reg)
+{
+	return readl(priv->regs + reg);
+}
+
+static void sun6i_dphy_update_bits(struct sun6i_dphy_priv *priv, u32 reg,
+				   u32 mask, u32 val)
+{
+	u32 tmp = sun6i_dphy_read(priv, reg);
+
+	tmp &= ~mask;
+	tmp |= val & mask;
+	sun6i_dphy_write(priv, reg, tmp);
+}
+
+static void sun6i_a31_mipi_dphy_tx_power_on(struct sun6i_dphy_priv *priv)
+{
+	u8 lanes_mask = GENMASK(priv->config.lanes - 1, 0);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA0_REG,
+			 SUN6I_DPHY_ANA0_REG_PWS |
+			 SUN6I_DPHY_ANA0_REG_DMPC |
+			 SUN6I_DPHY_ANA0_REG_SLV(7) |
+			 SUN6I_DPHY_ANA0_REG_DMPD(lanes_mask) |
+			 SUN6I_DPHY_ANA0_REG_DEN(lanes_mask));
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA1_REG,
+			 SUN6I_DPHY_ANA1_REG_CSMPS(1) |
+			 SUN6I_DPHY_ANA1_REG_SVTT(7));
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA4_REG,
+			 SUN6I_DPHY_ANA4_REG_CKDV(1) |
+			 SUN6I_DPHY_ANA4_REG_TMSC(1) |
+			 SUN6I_DPHY_ANA4_REG_TMSD(1) |
+			 SUN6I_DPHY_ANA4_REG_TXDNSC(1) |
+			 SUN6I_DPHY_ANA4_REG_TXDNSD(1) |
+			 SUN6I_DPHY_ANA4_REG_TXPUSC(1) |
+			 SUN6I_DPHY_ANA4_REG_TXPUSD(1) |
+			 SUN6I_DPHY_ANA4_REG_DMPLVC |
+			 SUN6I_DPHY_ANA4_REG_DMPLVD(lanes_mask));
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA2_REG,
+			 SUN6I_DPHY_ANA2_REG_ENIB);
+	udelay(5);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA3_REG,
+			 SUN6I_DPHY_ANA3_EN_LDOR |
+			 SUN6I_DPHY_ANA3_EN_LDOC |
+			 SUN6I_DPHY_ANA3_EN_LDOD);
+	udelay(1);
+}
+
+static void sun50i_a100_mipi_dphy_tx_power_on(struct sun6i_dphy_priv *priv)
+{
+	unsigned long mipi_symbol_rate = priv->config.hs_clk_rate;
+	unsigned int div, n;
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA4_REG,
+			 SUN6I_DPHY_ANA4_REG_IB(2) |
+			 SUN6I_DPHY_ANA4_REG_DMPLVD(4) |
+			 SUN6I_DPHY_ANA4_REG_VTT_SET(3) |
+			 SUN6I_DPHY_ANA4_REG_CKDV(3) |
+			 SUN6I_DPHY_ANA4_REG_TMSD(1) |
+			 SUN6I_DPHY_ANA4_REG_TMSC(1) |
+			 SUN6I_DPHY_ANA4_REG_TXPUSD(2) |
+			 SUN6I_DPHY_ANA4_REG_TXPUSC(3) |
+			 SUN6I_DPHY_ANA4_REG_TXDNSD(2) |
+			 SUN6I_DPHY_ANA4_REG_TXDNSC(3));
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA2_REG,
+			       SUN6I_DPHY_ANA2_EN_CK_CPU,
+			       SUN6I_DPHY_ANA2_EN_CK_CPU);
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA2_REG,
+			       SUN6I_DPHY_ANA2_REG_ENIB,
+			       SUN6I_DPHY_ANA2_REG_ENIB);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA3_REG,
+			 SUN6I_DPHY_ANA3_EN_LDOR |
+			 SUN6I_DPHY_ANA3_EN_LDOC |
+			 SUN6I_DPHY_ANA3_EN_LDOD);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA0_REG,
+			 SUN6I_DPHY_ANA0_REG_PLR(4) |
+			 SUN6I_DPHY_ANA0_REG_SFB(1));
+
+	sun6i_dphy_write(priv, SUN50I_COMBO_PHY_REG0,
+			 SUN50I_COMBO_PHY_REG0_EN_CP);
+
+	/* Choose a divider to limit the VCO frequency to around 2 GHz. */
+	div = 16 >> order_base_2(DIV_ROUND_UP(mipi_symbol_rate, 264000000));
+	n = mipi_symbol_rate * div / 24000000;
+
+	sun6i_dphy_write(priv, SUN50I_DPHY_PLL_REG0,
+			 SUN50I_DPHY_PLL_REG0_CP36_EN |
+			 SUN50I_DPHY_PLL_REG0_LDO_EN |
+			 SUN50I_DPHY_PLL_REG0_EN_LVS |
+			 SUN50I_DPHY_PLL_REG0_PLL_EN |
+			 SUN50I_DPHY_PLL_REG0_NDET |
+			 SUN50I_DPHY_PLL_REG0_P((div - 1) % 8) |
+			 SUN50I_DPHY_PLL_REG0_N(n) |
+			 SUN50I_DPHY_PLL_REG0_M0((div - 1) / 8) |
+			 SUN50I_DPHY_PLL_REG0_M1(2));
+
+	/* Disable sigma-delta modulation. */
+	sun6i_dphy_write(priv, SUN50I_DPHY_PLL_REG2, 0);
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA4_REG,
+			       SUN6I_DPHY_ANA4_REG_EN_MIPI,
+			       SUN6I_DPHY_ANA4_REG_EN_MIPI);
+
+	sun6i_dphy_update_bits(priv, SUN50I_COMBO_PHY_REG0,
+			       SUN50I_COMBO_PHY_REG0_EN_MIPI |
+			       SUN50I_COMBO_PHY_REG0_EN_COMBOLDO,
+			       SUN50I_COMBO_PHY_REG0_EN_MIPI |
+			       SUN50I_COMBO_PHY_REG0_EN_COMBOLDO);
+
+	sun6i_dphy_write(priv, SUN50I_COMBO_PHY_REG2,
+			 SUN50I_COMBO_PHY_REG2_HS_STOP_DLY(20));
+	udelay(1);
+}
+
+static int sun6i_dphy_init(struct phy *phy)
+{
+	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
+	int ret;
+
+	ret = reset_deassert(&priv->reset);
+	if (ret) {
+		dev_err(phy->dev, "Failed to deassert reset: %d\n", ret);
+		return ret;
+	}
+
+	ret = clk_enable(&priv->mod_clk);
+	if (ret) {
+		dev_err(phy->dev, "Failed to enable mod clock: %d\n", ret);
+		reset_assert(&priv->reset);
+		return ret;
+	}
+
+	ret = clk_set_rate(&priv->mod_clk, 150000000);
+	if (ret < 0 && ret != -ENOSYS) {
+		dev_err(phy->dev, "Failed to set mod clock rate: %d\n", ret);
+		clk_disable(&priv->mod_clk);
+		reset_assert(&priv->reset);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int sun6i_dphy_configure(struct phy *phy, void *params)
+{
+	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
+	struct phy_configure_opts_mipi_dphy *cfg = params;
+	int ret;
+
+	ret = phy_mipi_dphy_config_validate(cfg);
+	if (ret)
+		return ret;
+
+	memcpy(&priv->config, cfg, sizeof(priv->config));
+
+	return 0;
+}
+
+static int sun6i_dphy_power_on(struct phy *phy)
+{
+	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
+	u8 lanes_mask = GENMASK(priv->config.lanes - 1, 0);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_TX_CTL_REG,
+			 SUN6I_DPHY_TX_CTL_HS_TX_CLK_CONT);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME0_REG,
+			 SUN6I_DPHY_TX_TIME0_LP_CLK_DIV(14) |
+			 SUN6I_DPHY_TX_TIME0_HS_PREPARE(6) |
+			 SUN6I_DPHY_TX_TIME0_HS_TRAIL(10));
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME1_REG,
+			 SUN6I_DPHY_TX_TIME1_CLK_PREPARE(7) |
+			 SUN6I_DPHY_TX_TIME1_CLK_ZERO(50) |
+			 SUN6I_DPHY_TX_TIME1_CLK_PRE(3) |
+			 SUN6I_DPHY_TX_TIME1_CLK_POST(10));
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME2_REG,
+			 SUN6I_DPHY_TX_TIME2_CLK_TRAIL(30));
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME3_REG, 0);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME4_REG,
+			 SUN6I_DPHY_TX_TIME4_HS_TX_ANA0(3) |
+			 SUN6I_DPHY_TX_TIME4_HS_TX_ANA1(3));
+
+	/* Variant-specific analog power-on sequence */
+	if (priv->variant == SUN6I_DPHY_VARIANT_A100)
+		sun50i_a100_mipi_dphy_tx_power_on(priv);
+	else
+		sun6i_a31_mipi_dphy_tx_power_on(priv);
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA3_REG,
+			       SUN6I_DPHY_ANA3_EN_VTTC |
+			       SUN6I_DPHY_ANA3_EN_VTTD_MASK,
+			       SUN6I_DPHY_ANA3_EN_VTTC |
+			       SUN6I_DPHY_ANA3_EN_VTTD(lanes_mask));
+	udelay(1);
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA3_REG,
+			       SUN6I_DPHY_ANA3_EN_DIV,
+			       SUN6I_DPHY_ANA3_EN_DIV);
+	udelay(1);
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA2_REG,
+			       SUN6I_DPHY_ANA2_EN_CK_CPU,
+			       SUN6I_DPHY_ANA2_EN_CK_CPU);
+	udelay(1);
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA1_REG,
+			       SUN6I_DPHY_ANA1_REG_VTTMODE,
+			       SUN6I_DPHY_ANA1_REG_VTTMODE);
+
+	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA2_REG,
+			       SUN6I_DPHY_ANA2_EN_P2S_CPU_MASK,
+			       SUN6I_DPHY_ANA2_EN_P2S_CPU(lanes_mask));
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_GCTL_REG,
+			 SUN6I_DPHY_GCTL_LANE_NUM(priv->config.lanes) |
+			 SUN6I_DPHY_GCTL_EN);
+
+	return 0;
+}
+
+static int sun6i_dphy_power_off(struct phy *phy)
+{
+	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
+
+	sun6i_dphy_write(priv, SUN6I_DPHY_GCTL_REG, 0);
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA0_REG, 0);
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA1_REG, 0);
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA2_REG, 0);
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA3_REG, 0);
+	sun6i_dphy_write(priv, SUN6I_DPHY_ANA4_REG, 0);
+
+	return 0;
+}
+
+static int sun6i_dphy_exit(struct phy *phy)
+{
+	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
+
+	clk_disable(&priv->mod_clk);
+	reset_assert(&priv->reset);
+
+	return 0;
+}
+
+static int sun6i_dphy_probe(struct udevice *dev)
+{
+	struct sun6i_dphy_priv *priv = dev_get_priv(dev);
+	int ret;
+
+	priv->regs = dev_read_addr_ptr(dev);
+	if (!priv->regs)
+		return -EINVAL;
+
+	priv->variant = dev_get_driver_data(dev);
+
+	ret = clk_get_by_name(dev, "mod", &priv->mod_clk);
+	if (ret) {
+		dev_err(dev, "Failed to get mod clock: %d\n", ret);
+		return ret;
+	}
+
+	ret = reset_get_by_index(dev, 0, &priv->reset);
+	if (ret) {
+		dev_err(dev, "Failed to get reset: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static struct phy_ops sun6i_dphy_ops = {
+	.init		= sun6i_dphy_init,
+	.exit		= sun6i_dphy_exit,
+	.configure	= sun6i_dphy_configure,
+	.power_on	= sun6i_dphy_power_on,
+	.power_off	= sun6i_dphy_power_off,
+};
+
+static const struct udevice_id sun6i_dphy_ids[] = {
+	{
+		.compatible = "allwinner,sun6i-a31-mipi-dphy",
+		.data = SUN6I_DPHY_VARIANT_A31,
+	},
+	{
+		.compatible = "allwinner,sun50i-a100-mipi-dphy",
+		.data = SUN6I_DPHY_VARIANT_A100,
+	},
+	{ }
+};
+
+U_BOOT_DRIVER(sun6i_mipi_dphy) = {
+	.name		= "sun6i_mipi_dphy",
+	.id		= UCLASS_PHY,
+	.of_match	= sun6i_dphy_ids,
+	.probe		= sun6i_dphy_probe,
+	.ops		= &sun6i_dphy_ops,
+	.priv_auto	= sizeof(struct sun6i_dphy_priv),
+};

@@ -14,6 +14,9 @@
 static struct ccu_clk_gate d1_gates[] = {
 	[CLK_APB0]		= GATE_DUMMY,
 
+	[CLK_DE]		= GATE(0x600, BIT(31)),
+	[CLK_BUS_DE]		= GATE(0x60c, BIT(0)),
+
 	[CLK_BUS_MMC0]		= GATE(0x84c, BIT(0)),
 	[CLK_BUS_MMC1]		= GATE(0x84c, BIT(1)),
 	[CLK_BUS_MMC2]		= GATE(0x84c, BIT(2)),
@@ -44,10 +47,18 @@ static struct ccu_clk_gate d1_gates[] = {
 	[CLK_BUS_OTG]		= GATE(0xa8c, BIT(8)),
 	[CLK_BUS_LRADC]		= GATE(0xa9c, BIT(0)),
 
+	[CLK_BUS_DPSS_TOP]	= GATE(0xabc, BIT(0)),
+	[CLK_MIPI_DSI]		= GATE(0xb24, BIT(31)),
+	[CLK_BUS_MIPI_DSI]	= GATE(0xb4c, BIT(0)),
+	[CLK_TCON_LCD0]		= GATE(0xb60, BIT(31)),
+	[CLK_BUS_TCON_LCD0]	= GATE(0xb7c, BIT(0)),
+
 	[CLK_RISCV]		= GATE(0xd04, BIT(31)),
 };
 
 static struct ccu_reset d1_resets[] = {
+	[RST_BUS_DE]		= RESET(0x60c, BIT(16)),
+
 	[RST_BUS_MMC0]		= RESET(0x84c, BIT(16)),
 	[RST_BUS_MMC1]		= RESET(0x84c, BIT(17)),
 	[RST_BUS_MMC2]		= RESET(0x84c, BIT(18)),
@@ -74,6 +85,11 @@ static struct ccu_reset d1_resets[] = {
 	[RST_BUS_EHCI1]		= RESET(0xa8c, BIT(21)),
 	[RST_BUS_OTG]		= RESET(0xa8c, BIT(24)),
 	[RST_BUS_LRADC]		= RESET(0xa9c, BIT(16)),
+
+	[RST_BUS_DPSS_TOP]	= RESET(0xabc, BIT(16)),
+	[RST_BUS_MIPI_DSI]	= RESET(0xb4c, BIT(16)),
+	[RST_BUS_TCON_LCD0]	= RESET(0xb7c, BIT(16)),
+	[RST_BUS_LVDS0]		= RESET(0xbac, BIT(16)),
 };
 
 const struct ccu_desc d1_ccu_desc = {
