@@ -350,9 +350,9 @@ void lcdc_pll_set(struct sunxi_ccm_reg *ccm, int tcon, int dotclock,
 		/* T113-S/D1 clocks are handled separately or via DM CLK */
 		/* For now, just set the TCON LCD0 mod clock directly */
 		/* TCON_LCD0_CLK_REG at 0xb60 */
-		writel(BIT(31) | 1, SUNXI_CCM_BASE + 0xb60); /* Gate on, PLL_VIDEO(1X) */
+		writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0xb60); /* Gate on, PLL_VIDEO(1X) */
 		/* BUS_TCON_LCD0_CLK_REG at 0xb7c */
-		setbits_le32(SUNXI_CCM_BASE + 0xb7c, BIT(16) | BIT(0));
+		setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(16) | BIT(0));
 #else
 		writel(CCM_LCD_CH0_CTRL_GATE | CCM_LCD_CH0_CTRL_RST | pll,
 		       &ccm->lcd0_clk_cfg);
