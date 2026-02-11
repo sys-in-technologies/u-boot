@@ -884,13 +884,20 @@ static const struct udevice_id sun6i_dsi_ids[] = {
 	{ .compatible = "allwinner,sun6i-a31-mipi-dsi", .data = (ulong)&sun6i_a31_mipi_dsi_variant },
 	{ .compatible = "allwinner,sun50i-a64-mipi-dsi", .data = (ulong)&sun50i_a64_mipi_dsi_variant },
 	{ .compatible = "allwinner,sun50i-a100-mipi-dsi", .data = (ulong)&sun50i_a100_mipi_dsi_variant },
+	{ .compatible = "allwinner,sun20i-d1-mipi-dsi", .data = (ulong)&sun50i_a100_mipi_dsi_variant },
 	{ }
 };
+
+static int sun6i_dsi_bind(struct udevice *dev)
+{
+	return dm_scan_fdt_dev(dev);
+}
 
 U_BOOT_DRIVER(sun6i_mipi_dsi) = {
 	.name		= "sun6i_mipi_dsi",
 	.id		= UCLASS_DSI_HOST,
 	.of_match	= sun6i_dsi_ids,
+	.bind		= sun6i_dsi_bind,
 	.probe		= sun6i_dsi_probe,
 	.ops		= &sun6i_dsi_ops,
 	.priv_auto	= sizeof(struct sun6i_dsi_priv),
