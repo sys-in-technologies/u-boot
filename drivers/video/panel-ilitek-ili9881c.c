@@ -8,6 +8,7 @@
 #include <log.h>
 #include <mipi_dsi.h>
 #include <panel.h>
+#include <power/regulator.h>
 #include <asm/gpio.h>
 #include <linux/delay.h>
 
@@ -40,6 +41,8 @@ struct ili9881c_desc {
 struct ili9881c_priv {
 	struct udevice *dev;
 	struct gpio_desc reset;
+	struct udevice *power;
+	struct udevice *vcc_dsi;
 	const struct ili9881c_desc *desc;
 };
 
@@ -296,12 +299,31 @@ static int ili9881c_enable_backlight(struct udevice *dev)
 	struct mipi_dsi_device *dsi = plat->device;
 	int ret, i;
 
-	dm_gpio_set_value(&priv->reset, 1);
+	if (priv->power) {
+		printf("Panel: Enabling power-supply...\n");
+		regulator_set_enable(priv->power, true);
+		mdelay(10);
+	}
+
+	if (priv->vcc_dsi) {
+		printf("Panel: Enabling vcc-dsi-supply...\n");
+		regulator_set_enable(priv->vcc_dsi, true);
+		mdelay(10);
+	}
+
+	printf("Panel: Resetting...\n");
+	dm_gpio_set_value(&priv->reset, 1); /* Assert reset (Logical 1 -> Physical Low) */
 	mdelay(20);
-	dm_gpio_set_value(&priv->reset, 0);
+	dm_gpio_set_value(&priv->reset, 0); /* De-assert reset (Logical 0 -> Physical High) */
 	mdelay(20);
-	dm_gpio_set_value(&priv->reset, 1);
-	mdelay(100);
+	dm_gpio_set_value(&priv->reset, 1); /* Assert reset again? No, typically Pulse is High-Low-High */
+	/* Standard ILI9881C reset is: High -> Low (min 10us) -> High (min 5ms) */
+	dm_gpio_set_value(&priv->reset, 0); /* Start High */
+	mdelay(10);
+	dm_gpio_set_value(&priv->reset, 1); /* Pull Low */
+	mdelay(20);
+	dm_gpio_set_value(&priv->reset, 0); /* Back to High */
+	mdelay(120);
 
 	for (i = 0; i < priv->desc->init_length; i++) {
 		const struct ili9881c_instr *instr = &priv->desc->init[i];
@@ -344,16 +366,45 @@ static int ili9881c_probe(struct udevice *dev)
 {
 	struct ili9881c_priv *priv = dev_get_priv(dev);
 	struct mipi_dsi_panel_plat *plat = dev_get_plat(dev);
+	static struct mipi_dsi_device dsi_dev; /* Static storage for the device info */
+	int ret;
+
+	printf("Panel: Probing %s...\n", dev->name);
 
 	priv->desc = (const struct ili9881c_desc *)dev_get_driver_data(dev);
 
-	gpio_request_by_name(dev, "reset-gpios", 0, &priv->reset, GPIOD_IS_OUT);
+	ret = gpio_request_by_name(dev, "reset-gpios", 0, &priv->reset, GPIOD_IS_OUT);
+	if (ret) {
+		printf("Panel: Failed to request reset-gpios: %d\n", ret);
+		return ret;
+	}
+
+	ret = device_get_supply_regulator(dev, "power-supply", &priv->power);
+	if (ret && ret != -ENOENT) {
+		printf("Panel: Failed to get power-supply: %d\n", ret);
+		return ret;
+	}
+
+	ret = device_get_supply_regulator(dev, "vcc-dsi-supply", &priv->vcc_dsi);
+	if (ret && ret != -ENOENT) {
+		printf("Panel: Failed to get vcc-dsi-supply: %d\n", ret);
+		return ret;
+	}
 
 	/* Fill platform data for DSI host */
 	plat->lanes = priv->desc->lanes;
 	plat->format = priv->desc->format;
 	plat->mode_flags = priv->desc->mode_flags;
 
+	/* Initialize the MIPI DSI device structure */
+	memset(&dsi_dev, 0, sizeof(dsi_dev));
+	dsi_dev.dev = dev;
+	dsi_dev.lanes = plat->lanes;
+	dsi_dev.format = plat->format;
+	dsi_dev.mode_flags = plat->mode_flags;
+	plat->device = &dsi_dev;
+
+	printf("Panel: Probe successful (lanes=%d).\n", plat->lanes);
 	return 0;
 }
 

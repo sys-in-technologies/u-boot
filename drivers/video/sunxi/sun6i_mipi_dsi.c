@@ -9,9 +9,12 @@
 #include <dm.h>
 #include <dsi_host.h>
 #include <generic-phy.h>
+#include <phy-mipi-dphy.h>
 #include <log.h>
 #include <mipi_dsi.h>
 #include <reset.h>
+#include <power/regulator.h>
+#include <asm/arch/cpu.h>
 #include <asm/io.h>
 #include <dm/device_compat.h>
 #include <linux/bitops.h>
@@ -188,6 +191,7 @@ struct sun6i_dsi_priv {
 	struct clk bus_clk;
 	struct clk mod_clk;
 	struct reset_ctl reset;
+	struct udevice *vcc_dsi;
 	struct phy dphy;
 	const struct sun6i_dsi_variant *variant;
 	struct display_timing timing;
@@ -245,6 +249,24 @@ static u32 sun6i_dsi_ecc_compute(unsigned int data)
 	return ecc;
 }
 
+static u16 sun6i_dsi_crc_compute(u8 const *buffer, size_t len)
+{
+	u16 crc = 0xffff;
+	int i, j;
+
+	for (i = 0; i < len; i++) {
+		crc ^= buffer[i];
+		for (j = 0; j < 8; j++) {
+			if (crc & 1)
+				crc = (crc >> 1) ^ 0x8408;
+			else
+				crc >>= 1;
+		}
+	}
+
+	return ~crc;
+}
+
 static u32 sun6i_dsi_build_sync_pkt(u8 dt, u8 vc, u8 d0, u8 d1)
 {
 	u32 val = dt & 0x3f;
@@ -283,10 +305,14 @@ static void sun6i_dsi_inst_commit(struct sun6i_dsi_priv *dsi)
 static int sun6i_dsi_inst_wait_for_completion(struct sun6i_dsi_priv *dsi)
 {
 	u32 val;
+	int ret;
 
-	return readl_poll_timeout(dsi->regs + SUN6I_DSI_BASIC_CTL0_REG,
+	ret = readl_poll_timeout(dsi->regs + SUN6I_DSI_BASIC_CTL0_REG,
 				  val, !(val & SUN6I_DSI_BASIC_CTL0_INST_ST),
-				  5000);
+				  100000);
+	if (ret)
+		printf("DSI: Instruction completion timeout! (CTL0: 0x%08x)\n", val);
+	return ret;
 }
 
 static void sun6i_dsi_inst_setup(struct sun6i_dsi_priv *dsi,
@@ -468,8 +494,8 @@ static void sun6i_dsi_setup_format(struct sun6i_dsi_priv *dsi,
 
 	writel(val, dsi->regs + SUN6I_DSI_PIXEL_PH_REG);
 
-	writel(SUN6I_DSI_PIXEL_PF0_REG,
-	       SUN6I_DSI_PIXEL_PF0_CRC_FORCE(0xffff));
+	writel(SUN6I_DSI_PIXEL_PF0_CRC_FORCE(0xffff),
+	       dsi->regs + SUN6I_DSI_PIXEL_PF0_REG);
 
 	writel(SUN6I_DSI_PIXEL_PF1_CRC_INIT_LINE0(0xffff) |
 	       SUN6I_DSI_PIXEL_PF1_CRC_INIT_LINEN(0xffff),
@@ -618,11 +644,20 @@ static u32 sun6i_dsi_dcs_build_pkt_hdr(struct sun6i_dsi_priv *dsi,
 static int sun6i_dsi_dcs_write_short(struct sun6i_dsi_priv *dsi,
 				     const struct mipi_dsi_msg *msg)
 {
+	int ret;
+
 	writel(sun6i_dsi_dcs_build_pkt_hdr(dsi, msg),
 	       dsi->regs + SUN6I_DSI_CMD_TX_REG(0));
 	clrsetbits_le32(dsi->regs + SUN6I_DSI_CMD_CTL_REG, 0xff, (4 - 1));
 
 	sun6i_dsi_start(dsi, DSI_START_LPTX);
+
+	ret = sun6i_dsi_inst_wait_for_completion(dsi);
+	if (ret < 0) {
+		printf("DSI: write_short: wait for completion failed: %d\n", ret);
+		sun6i_dsi_inst_abort(dsi);
+		return ret;
+	}
 
 	return msg->tx_len;
 }
@@ -633,20 +668,25 @@ static int sun6i_dsi_dcs_write_long(struct sun6i_dsi_priv *dsi,
 	int ret, len = 0;
 	u32 val;
 	u8 *tx_buf = (u8 *)msg->tx_buf;
+	u16 crc;
+	u8 bounce[256]; /* DCS long packets are usually small */
+
+	if (msg->tx_len + 2 > sizeof(bounce))
+		return -EINVAL;
 
 	writel(sun6i_dsi_dcs_build_pkt_hdr(dsi, msg),
 	       dsi->regs + SUN6I_DSI_CMD_TX_REG(0));
 
-	for (int i = 0; i < msg->tx_len; i += 4) {
+	memcpy(bounce, tx_buf, msg->tx_len);
+	crc = sun6i_dsi_crc_compute(tx_buf, msg->tx_len);
+	memcpy(bounce + msg->tx_len, &crc, sizeof(crc));
+	len = msg->tx_len + sizeof(crc);
+
+	for (int i = 0; i < len; i += 4) {
 		val = 0;
-		memcpy(&val, tx_buf + i, min((size_t)4, msg->tx_len - i));
+		memcpy(&val, bounce + i, min((size_t)4, (size_t)(len - i)));
 		writel(val, dsi->regs + SUN6I_DSI_CMD_TX_REG(1 + i / 4));
 	}
-	len = msg->tx_len;
-	/* U-Boot doesn't strictly need the CRC for simple init commands,
-	 * but let's just use the same logic as Linux if we can.
-	 * Actually, Linux calculates CRC. For now, I'll just set the length.
-	 */
 
 	clrsetbits_le32(dsi->regs + SUN6I_DSI_CMD_CTL_REG, 0xfff, len + 4 - 1);
 
@@ -701,8 +741,10 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 	int ret;
 
 	ret = sun6i_dsi_inst_wait_for_completion(dsi);
-	if (ret < 0)
+	if (ret < 0) {
+		printf("DSI: transfer: wait for completion failed: %d\n", ret);
 		sun6i_dsi_inst_abort(dsi);
+	}
 
 	writel(SUN6I_DSI_CMD_CTL_RX_OVERFLOW |
 	       SUN6I_DSI_CMD_CTL_RX_FLAG |
@@ -767,14 +809,20 @@ static int sun6i_dsi_init(struct udevice *dev,
 	struct sun6i_dsi_priv *dsi = dev_get_priv(dev);
 	u16 delay;
 
+	printf("DSI: init starting\n");
 	dsi->device = device;
 	memcpy(&dsi->timing, timings, sizeof(struct display_timing));
 	dsi->host.dev = (struct device *)dev;
 	dsi->host.ops = &sun6i_dsi_mipi_host_ops;
 	device->host = &dsi->host;
 
-	/* Clocks and resets should be enabled in probe */
+	if (dsi->vcc_dsi) {
+		printf("DSI: Enabling vcc-dsi-supply...\n");
+		regulator_set_enable(dsi->vcc_dsi, true);
+		mdelay(10);
+	}
 
+	printf("DSI: enabling block...\n");
 	writel(SUN6I_DSI_CTL_EN, dsi->regs + SUN6I_DSI_CTL_REG);
 
 	writel(SUN6I_DSI_BASIC_CTL0_ECC_EN | SUN6I_DSI_BASIC_CTL0_CRC_EN,
@@ -783,6 +831,7 @@ static int sun6i_dsi_init(struct udevice *dev,
 	writel(10, dsi->regs + SUN6I_DSI_TRANS_START_REG);
 	writel(0, dsi->regs + SUN6I_DSI_TRANS_ZERO_REG);
 
+	printf("DSI: inst_init...\n");
 	sun6i_dsi_inst_init(dsi, device);
 
 	writel(0xff, dsi->regs + SUN6I_DSI_DEBUG_DATA_REG);
@@ -794,16 +843,36 @@ static int sun6i_dsi_init(struct udevice *dev,
 	       SUN6I_DSI_BASIC_CTL1_VIDEO_MODE,
 	       dsi->regs + SUN6I_DSI_BASIC_CTL1_REG);
 
+	printf("DSI: setup_burst...\n");
 	sun6i_dsi_setup_burst(dsi, timings);
+	printf("DSI: setup_inst_loop...\n");
 	sun6i_dsi_setup_inst_loop(dsi, timings);
+	printf("DSI: setup_format...\n");
 	sun6i_dsi_setup_format(dsi, timings);
+	printf("DSI: setup_timings...\n");
 	sun6i_dsi_setup_timings(dsi, timings);
 
 	/* PHY initialization */
+	struct phy_configure_opts_mipi_dphy cfg = {0};
+	int ret;
+
+	ret = phy_mipi_dphy_get_default_config(timings->pixelclock.typ,
+					       mipi_dsi_pixel_format_to_bpp(device->format),
+					       device->lanes, &cfg);
+	if (ret) {
+		printf("DSI: Failed to get default DPHY config: %d\n", ret);
+		return ret;
+	}
+
+	printf("DSI: Configuring DPHY with %d lanes, bitrate %lu Hz\n", cfg.lanes, cfg.hs_clk_rate);
 	generic_phy_init(&dsi->dphy);
-	/* Note: In U-Boot, we might need to set mode/configure specifically if the framework supports it */
+	generic_phy_set_mode(&dsi->dphy, PHY_MODE_MIPI_DPHY, 0);
+	ret = generic_phy_configure(&dsi->dphy, &cfg);
+	if (ret)
+		printf("DSI: generic_phy_configure failed: %d\n", ret);
 	generic_phy_power_on(&dsi->dphy);
 
+	printf("DSI: init done\n");
 	return 0;
 }
 
@@ -828,43 +897,77 @@ static int sun6i_dsi_probe(struct udevice *dev)
 	struct sun6i_dsi_priv *dsi = dev_get_priv(dev);
 	int ret;
 
+	printf("DSI: Probing %s...\n", dev->name);
+
 	dsi->variant = (const struct sun6i_dsi_variant *)dev_get_driver_data(dev);
 
 	dsi->regs = dev_read_addr_ptr(dev);
-	if (!dsi->regs)
+	if (!dsi->regs) {
+		printf("DSI: Failed to get register address\n");
 		return -EINVAL;
-
-	if (dsi->variant->has_mod_clk)
-		ret = clk_get_by_name(dev, "bus", &dsi->bus_clk);
-	else
-		ret = clk_get_by_index(dev, 0, &dsi->bus_clk);
-
-	if (ret)
-		return ret;
-
-	ret = clk_enable(&dsi->bus_clk);
-	if (ret)
-		return ret;
+	}
 
 	if (dsi->variant->has_mod_clk) {
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+		/* T113-S/D1: DSI mod clock at 0xb24, gate bit 31, source PLL_VIDEO(1X) */
+		printf("DSI: Enabling mod clock (NCAT2)...\n");
+		writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0xb24);
+#else
 		ret = clk_get_by_name(dev, "mod", &dsi->mod_clk);
 		if (!ret) {
 			if (dsi->variant->set_mod_clk)
 				clk_set_rate(&dsi->mod_clk, 297000000);
 			clk_enable(&dsi->mod_clk);
 		}
+#endif
+	}
+
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/* T113-S/D1: DSI BUS gate/reset at 0xb4c */
+	printf("DSI: Enabling bus gate/reset (NCAT2)...\n");
+	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb4c, BIT(16) | BIT(0));
+#endif
+
+	if (dsi->variant->has_mod_clk)
+		ret = clk_get_by_name(dev, "bus", &dsi->bus_clk);
+	else
+		ret = clk_get_by_index(dev, 0, &dsi->bus_clk);
+
+	if (ret) {
+		printf("DSI: Failed to get bus clock: %d\n", ret);
+		/* Don't return error yet for NCAT2 as we handle it above */
+#ifndef CONFIG_SUNXI_GEN_NCAT2
+		return ret;
+#endif
+	}
+
+	ret = clk_enable(&dsi->bus_clk);
+	if (ret) {
+		printf("DSI: Failed to enable bus clock: %d\n", ret);
+#ifndef CONFIG_SUNXI_GEN_NCAT2
+		return ret;
+#endif
 	}
 
 	ret = reset_get_by_index(dev, 0, &dsi->reset);
-	if (!ret)
+	if (!ret) {
+		printf("DSI: De-asserting reset...\n");
 		reset_deassert(&dsi->reset);
+	}
 
 	ret = generic_phy_get_by_name(dev, "dphy", &dsi->dphy);
 	if (ret) {
-		dev_err(dev, "failed to get dphy\n");
+		printf("DSI: Failed to get dphy: %d\n", ret);
 		return ret;
 	}
 
+	ret = device_get_supply_regulator(dev, "vcc-dsi-supply", &dsi->vcc_dsi);
+	if (ret && ret != -ENOENT) {
+		printf("DSI: Failed to get vcc-dsi-supply: %d\n", ret);
+		return ret;
+	}
+
+	printf("DSI: Probe successful.\n");
 	return 0;
 }
 

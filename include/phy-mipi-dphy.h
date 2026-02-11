@@ -272,7 +272,7 @@ struct phy_configure_opts_mipi_dphy {
 	 * Number of active, consecutive, data lanes, starting from
 	 * lane 0, used for the transmissions.
 	 */
-	unsigned char		lanes;
+	unsigned int		lanes;
 };
 
 int phy_mipi_dphy_get_default_config(unsigned long pixel_clock,

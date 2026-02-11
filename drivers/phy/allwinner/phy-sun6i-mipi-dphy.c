@@ -16,6 +16,7 @@
 #include <dm/device_compat.h>
 #include <linux/bitops.h>
 #include <linux/delay.h>
+#include <asm/arch/cpu.h>
 #include <linux/log2.h>
 
 #include <phy-mipi-dphy.h>
@@ -258,6 +259,7 @@ static int sun6i_dphy_init(struct phy *phy)
 	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
 	int ret;
 
+	printf("DPHY: Initializing...\n");
 	ret = reset_deassert(&priv->reset);
 	if (ret) {
 		dev_err(phy->dev, "Failed to deassert reset: %d\n", ret);
@@ -288,11 +290,13 @@ static int sun6i_dphy_configure(struct phy *phy, void *params)
 	struct phy_configure_opts_mipi_dphy *cfg = params;
 	int ret;
 
+	printf("DPHY: Configuring (priv=%p, %d lanes, bitrate %lu)...\n", priv, cfg->lanes, cfg->hs_clk_rate);
 	ret = phy_mipi_dphy_config_validate(cfg);
 	if (ret)
 		return ret;
 
 	memcpy(&priv->config, cfg, sizeof(priv->config));
+	printf("DPHY: lanes stored in priv: %d\n", priv->config.lanes);
 
 	return 0;
 }
@@ -301,23 +305,45 @@ static int sun6i_dphy_power_on(struct phy *phy)
 {
 	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
 	u8 lanes_mask = GENMASK(priv->config.lanes - 1, 0);
+	unsigned long long ui_ps;
+	u32 hs_prepare, hs_trail, clk_prepare, clk_zero, clk_pre, clk_post, clk_trail, hs_zero;
+	u32 lpx;
+
+	printf("DPHY: Powering on (priv=%p, %d lanes)...\n", priv, priv->config.lanes);
+
+	ui_ps = 1000000000000ULL / priv->config.hs_clk_rate;
+	lpx = 50000 / 2000; /* LPX min 50ns, using a conservative divisor */
+
+	/* Calculations derived from Linux/BSP logic */
+	hs_prepare = (40000 + 4 * ui_ps) / 2000;
+	hs_trail = max(8 * ui_ps, 60000 + 4 * ui_ps) / 2000;
+	hs_zero = (105000 + 6 * ui_ps) / 2000 - hs_prepare;
+
+	clk_prepare = 38000 / 2000;
+	clk_zero = (300000 - 38000) / 2000;
+	clk_pre = 8;
+	clk_post = (60000 + 52 * ui_ps) / 2000;
+	clk_trail = 60000 / 2000;
+
+	printf("DPHY: Timings: hs_prep=%d, hs_trail=%d, clk_prep=%d, clk_zero=%d\n", 
+		hs_prepare, hs_trail, clk_prepare, clk_zero);
 
 	sun6i_dphy_write(priv, SUN6I_DPHY_TX_CTL_REG,
 			 SUN6I_DPHY_TX_CTL_HS_TX_CLK_CONT);
 
 	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME0_REG,
 			 SUN6I_DPHY_TX_TIME0_LP_CLK_DIV(14) |
-			 SUN6I_DPHY_TX_TIME0_HS_PREPARE(6) |
-			 SUN6I_DPHY_TX_TIME0_HS_TRAIL(10));
+			 SUN6I_DPHY_TX_TIME0_HS_PREPARE(hs_prepare) |
+			 SUN6I_DPHY_TX_TIME0_HS_TRAIL(hs_trail));
 
 	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME1_REG,
-			 SUN6I_DPHY_TX_TIME1_CLK_PREPARE(7) |
-			 SUN6I_DPHY_TX_TIME1_CLK_ZERO(50) |
-			 SUN6I_DPHY_TX_TIME1_CLK_PRE(3) |
-			 SUN6I_DPHY_TX_TIME1_CLK_POST(10));
+			 SUN6I_DPHY_TX_TIME1_CLK_PREPARE(clk_prepare) |
+			 SUN6I_DPHY_TX_TIME1_CLK_ZERO(clk_zero) |
+			 SUN6I_DPHY_TX_TIME1_CLK_PRE(clk_pre) |
+			 SUN6I_DPHY_TX_TIME1_CLK_POST(clk_post));
 
 	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME2_REG,
-			 SUN6I_DPHY_TX_TIME2_CLK_TRAIL(30));
+			 SUN6I_DPHY_TX_TIME2_CLK_TRAIL(clk_trail));
 
 	sun6i_dphy_write(priv, SUN6I_DPHY_TX_TIME3_REG, 0);
 
@@ -392,24 +418,37 @@ static int sun6i_dphy_probe(struct udevice *dev)
 	struct sun6i_dphy_priv *priv = dev_get_priv(dev);
 	int ret;
 
+	printf("DPHY: Probing %s...\n", dev->name);
+
 	priv->regs = dev_read_addr_ptr(dev);
 	if (!priv->regs)
 		return -EINVAL;
 
-	priv->variant = dev_get_driver_data(dev);
+	priv->variant = (enum sun6i_dphy_type)dev_get_driver_data(dev);
+
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/* T113-S/D1: DPHY mod clock at 0xb24 (shared with DSI), gate bit 31, source PLL_VIDEO(1X) */
+	/* We already enable it in DSI driver, but let's be sure */
+	writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0xb24);
+	/* DPHY BUS gate/reset at 0xb4c (shared with DSI) */
+	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb4c, BIT(16) | BIT(0));
+#endif
 
 	ret = clk_get_by_name(dev, "mod", &priv->mod_clk);
 	if (ret) {
-		dev_err(dev, "Failed to get mod clock: %d\n", ret);
+		printf("DPHY: Failed to get mod clock: %d\n", ret);
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
+#endif
 	}
 
 	ret = reset_get_by_index(dev, 0, &priv->reset);
 	if (ret) {
-		dev_err(dev, "Failed to get reset: %d\n", ret);
+		printf("DPHY: Failed to get reset: %d\n", ret);
 		return ret;
 	}
 
+	printf("DPHY: Probe successful.\n");
 	return 0;
 }
 
@@ -428,6 +467,10 @@ static const struct udevice_id sun6i_dphy_ids[] = {
 	},
 	{
 		.compatible = "allwinner,sun50i-a100-mipi-dphy",
+		.data = SUN6I_DPHY_VARIANT_A100,
+	},
+	{
+		.compatible = "allwinner,sun20i-d1-mipi-dphy",
 		.data = SUN6I_DPHY_VARIANT_A100,
 	},
 	{ }

@@ -111,8 +111,11 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 #endif
 
 	clk_delay = lcdc_get_clk_delay(mode, 0);
-	writel(SUNXI_LCDC_TCON0_CTRL_ENABLE |
-	       SUNXI_LCDC_TCON0_CTRL_CLK_DELAY(clk_delay), &lcdc->tcon0_ctrl);
+	val = SUNXI_LCDC_TCON0_CTRL_ENABLE |
+	      SUNXI_LCDC_TCON0_CTRL_CLK_DELAY(clk_delay);
+	if (dsi_mode)
+		val |= SUNXI_LCDC_TCON0_CTRL_IF_8080;
+	writel(val, &lcdc->tcon0_ctrl);
 
 	writel(SUNXI_LCDC_TCON0_DCLK_ENABLE |
 	       SUNXI_LCDC_TCON0_DCLK_DIV(clk_div), &lcdc->tcon0_dclk);

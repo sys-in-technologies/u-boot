@@ -11,14 +11,41 @@
 
 #ifndef __ASSEMBLY__
 #include <linux/bitops.h>
+#include <asm/io.h>
 
 struct sunxi_ccm_reg {
 	u32 dummy;
 };
 
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+static inline void clock_set_pll3(unsigned int hz)
+{
+	u32 n = hz / 24000000;
+	/* D1/T113 PLL_VIDEO0 at 0x0040: EN(27), LOCK(28), OUT_EN(31), LDO(25:24)=3, N(15:8), M(0)=0 */
+	writel(BIT(31) | BIT(27) | (3 << 24) | ((n - 1) << 8), SUNXI_CCM_BASE + 0x40);
+	while (!(readl(SUNXI_CCM_BASE + 0x40) & BIT(28)));
+}
+
+static inline unsigned int clock_get_pll3(void)
+{
+	u32 reg = readl(SUNXI_CCM_BASE + 0x40);
+	u32 n = ((reg >> 8) & 0xff) + 1;
+	return n * 24000000;
+}
+
+static inline void clock_set_pll10(unsigned int hz)
+{
+	u32 n = hz / 24000000;
+	/* D1/T113 PLL_VIDEO1 at 0x0048: same layout as PLL_VIDEO0 */
+	writel(BIT(31) | BIT(27) | (3 << 24) | ((n - 1) << 8), SUNXI_CCM_BASE + 0x48);
+	while (!(readl(SUNXI_CCM_BASE + 0x48) & BIT(28)));
+}
+#else
 static inline void clock_set_pll3(unsigned int hz) {}
 static inline unsigned int clock_get_pll3(void) { return 0; }
 static inline void clock_set_pll10(unsigned int hz) {}
+#endif
+
 static inline void clock_set_mipi_pll(unsigned int hz) {}
 static inline unsigned int clock_get_mipi_pll(void) { return 0; }
 static inline void clock_set_pll3_factors(int m, int n) {}

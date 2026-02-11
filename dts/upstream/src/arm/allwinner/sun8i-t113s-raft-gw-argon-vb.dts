@@ -340,6 +340,7 @@
 };
 
 &mixer0 {
+	status = "okay";
 	ports {
 		mixer0_out: port@1 {
 			mixer0_out_tcon_top_mixer0: endpoint {
@@ -352,6 +353,7 @@
 /delete-node/ &mixer1;
 
 &tcon_top {
+	status = "okay";
 	ports {
 		tcon_top_mixer0_in: port@0 {
 			tcon_top_mixer0_in_mixer0: endpoint {
@@ -374,6 +376,7 @@
 };
 
 &tcon_lcd0 {
+	status = "okay";
 	ports {
 		tcon_lcd0_in: port@0 {
 			tcon_lcd0_in_tcon_top_mixer0: endpoint@0 {

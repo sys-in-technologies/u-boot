@@ -49,9 +49,11 @@ static void sunxi_de2_composer_init(void)
 #ifdef CONFIG_SUNXI_GEN_NCAT2
 	/* T113-S/D1 clocks are handled via absolute offsets or DM CLK */
 	/* DE mod clock at 0x600 */
-	writel(BIT(31) | 1, SUNXI_CCM_BASE + 0x600); /* Gate on, PLL_VIDEO(1X) */
+	printf("DE2: Enabling DE mod clock...\n");
+	writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0x600); /* Gate on, PLL_VIDEO(1X) */
 	/* BUS_DE gate/reset at 0x60c */
-	setbits_le32(SUNXI_CCM_BASE + 0x60c, BIT(16) | BIT(0));
+	printf("DE2: Enabling BUS_DE gate/reset...\n");
+	setbits_le32((u8 *)SUNXI_CCM_BASE + 0x60c, BIT(16) | BIT(0));
 #else
 	clock_set_pll10(432000000);
 
@@ -92,6 +94,8 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	int channel;
 	u32 format;
 
+	printf("DE2: mode_set start (mux=%d, res=%dx%d)\n", mux, mode->hactive.typ, mode->vactive.typ);
+
 	/* enable clock */
 #ifdef CONFIG_MACH_SUN8I_H3
 	setbits_le32(&de_clk_regs->rst_cfg, (mux == 0) ? 1 : 4);
@@ -103,6 +107,7 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 
 	clrbits_le32(&de_clk_regs->sel_cfg, 1);
 
+	printf("DE2: global registers access...\n");
 	writel(SUNXI_DE2_MUX_GLB_CTL_EN, &de_glb_regs->ctl);
 	writel(0, &de_glb_regs->status);
 	writel(1, &de_glb_regs->dbuff);
@@ -196,6 +201,7 @@ static int sunxi_de2_init(struct udevice *dev, ulong fbbase,
 	struct display_plat *disp_uc_plat;
 	int ret;
 
+	printf("DE2: sunxi_de2_init starting\n");
 	disp_uc_plat = dev_get_uclass_plat(disp);
 	debug("Using device '%s', disp_uc_priv=%p\n", disp->name, disp_uc_plat);
 	if (display_in_use(disp)) {
@@ -205,25 +211,27 @@ static int sunxi_de2_init(struct udevice *dev, ulong fbbase,
 
 	disp_uc_plat->source_id = mux;
 
+	printf("DE2: Reading display timing...\n");
 	ret = display_read_timing(disp, &timing);
 	if (ret) {
-		debug("%s: Failed to read timings\n", __func__);
+		printf("DE2: Failed to read timings: %d\n", ret);
 		return ret;
 	}
 
 	sunxi_de2_composer_init();
 	sunxi_de2_mode_set(mux, &timing, 1 << l2bpp, fbbase, is_composite);
 
+	printf("DE2: Enabling display (triggering TCON/DSI/Panel)...\n");
 	ret = display_enable(disp, 1 << l2bpp, &timing);
 	if (ret) {
-		debug("%s: Failed to enable display\n", __func__);
+		printf("DE2: Failed to enable display: %d\n", ret);
 		return ret;
 	}
 
 	uc_priv->xsize = timing.hactive.typ;
 	uc_priv->ysize = timing.vactive.typ;
 	uc_priv->bpix = l2bpp;
-	debug("fb=%lx, size=%d %d\n", fbbase, uc_priv->xsize, uc_priv->ysize);
+	printf("DE2: fb=%lx, size=%d %d\n", fbbase, uc_priv->xsize, uc_priv->ysize);
 
 #ifdef CONFIG_EFI_LOADER
 	efi_add_memory_map(fbbase,
@@ -241,9 +249,13 @@ static int sunxi_de2_probe(struct udevice *dev)
 	struct udevice *disp;
 	int ret;
 
+	printf("DE2: Probing %s...\n", dev->name);
+
 	/* Before relocation we don't need to do anything */
-	if (!(gd->flags & GD_FLG_RELOC))
+	if (!(gd->flags & GD_FLG_RELOC)) {
+		printf("DE2: Pre-reloc, skipping.\n");
 		return 0;
+	}
 
 	ret = uclass_get_device_by_driver(UCLASS_DISPLAY,
 					  DM_DRIVER_GET(sunxi_lcd), &disp);
@@ -252,12 +264,17 @@ static int sunxi_de2_probe(struct udevice *dev)
 
 		mux = 0;
 
+		printf("DE2: Found LCD display, initializing...\n");
 		ret = sunxi_de2_init(dev, plat->base, VIDEO_BPP32, disp, mux,
 				     false);
 		if (!ret) {
+			printf("DE2: Initialization successful.\n");
 			video_set_flush_dcache(dev, 1);
 			return 0;
 		}
+		printf("DE2: sunxi_de2_init failed: %d\n", ret);
+	} else {
+		printf("DE2: sunxi_lcd driver not found or probe failed: %d\n", ret);
 	}
 
 	debug("%s: lcd display not found (ret=%d)\n", __func__, ret);
@@ -297,17 +314,21 @@ static int sunxi_de2_bind(struct udevice *dev)
 static const struct video_ops sunxi_de2_ops = {
 };
 
+static const struct udevice_id sunxi_de2_ids[] = {
+	{ .compatible = "allwinner,sun20i-d1-display-engine" },
+	{ .compatible = "allwinner,sun50i-a64-display-engine" },
+	{ .compatible = "allwinner,sun8i-h3-display-engine" },
+	{ }
+};
+
 U_BOOT_DRIVER(sunxi_de2) = {
 	.name	= "sunxi_de2",
 	.id	= UCLASS_VIDEO,
+	.of_match = sunxi_de2_ids,
 	.ops	= &sunxi_de2_ops,
 	.bind	= sunxi_de2_bind,
 	.probe	= sunxi_de2_probe,
 	.flags	= DM_FLAG_PRE_RELOC,
-};
-
-U_BOOT_DRVINFO(sunxi_de2) = {
-	.name = "sunxi_de2"
 };
 
 /*
