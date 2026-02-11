@@ -11,6 +11,36 @@
 
 #ifndef __ASSEMBLY__
 #include <linux/bitops.h>
+
+struct sunxi_ccm_reg {
+	u32 dummy;
+};
+
+static inline void clock_set_pll3(unsigned int hz) {}
+static inline unsigned int clock_get_pll3(void) { return 0; }
+static inline void clock_set_pll10(unsigned int hz) {}
+static inline void clock_set_mipi_pll(unsigned int hz) {}
+static inline unsigned int clock_get_mipi_pll(void) { return 0; }
+static inline void clock_set_pll3_factors(int m, int n) {}
+
+#define CCM_LCD_CH0_CTRL_PLL3		0
+#define CCM_LCD_CH0_CTRL_PLL3_2X	0
+#define CCM_LCD_CH0_CTRL_MIPI_PLL	0
+#define CCM_LCD_CH0_CTRL_GATE		0
+#define CCM_LCD_CH0_CTRL_RST		0
+#define CCM_DE2_CTRL_PLL_MASK		0
+#define CCM_DE2_CTRL_PLL10		0
+#define CCM_DE2_CTRL_GATE		0
+
+#define AHB_RESET_OFFSET_LCD0		0
+#define AHB_GATE_OFFSET_LCD0		0
+#define AHB_RESET_OFFSET_LCD1		0
+#define AHB_GATE_OFFSET_LCD1		0
+#define AHB_RESET_OFFSET_DE		0
+#define AHB_GATE_OFFSET_DE		0
+#define AHB_RESET_OFFSET_HDMI		0
+#define AHB_RESET_OFFSET_HDMI2		0
+#define AHB_GATE_OFFSET_HDMI		0
 #endif
 
 /* Main CCU register offsets */

@@ -238,14 +238,17 @@ static void sunxi_dw_hdmi_pll_set(uint clk_khz, int *phy_div)
 static void sunxi_dw_hdmi_lcdc_init(int mux, const struct display_timing *edid,
 				    int bpp)
 {
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 	struct sunxi_ccm_reg * const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
 	int div = DIV_ROUND_UP(clock_get_pll3(), edid->pixelclock.typ);
+#endif
 	struct sunxi_lcdc_reg *lcdc;
 
 	if (mux == 0) {
 		lcdc = (struct sunxi_lcdc_reg *)SUNXI_LCD0_BASE;
 
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 		/* Reset off */
 		setbits_le32(&ccm->ahb_reset1_cfg, 1 << AHB_RESET_OFFSET_LCD0);
 
@@ -253,9 +256,11 @@ static void sunxi_dw_hdmi_lcdc_init(int mux, const struct display_timing *edid,
 		setbits_le32(&ccm->ahb_gate1, 1 << AHB_GATE_OFFSET_LCD0);
 		writel(CCM_LCD0_CTRL_GATE | CCM_LCD0_CTRL_M(div),
 		       &ccm->lcd0_clk_cfg);
+#endif
 	} else {
 		lcdc = (struct sunxi_lcdc_reg *)SUNXI_LCD1_BASE;
 
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 		/* Reset off */
 		setbits_le32(&ccm->ahb_reset1_cfg, 1 << AHB_RESET_OFFSET_LCD1);
 
@@ -263,6 +268,7 @@ static void sunxi_dw_hdmi_lcdc_init(int mux, const struct display_timing *edid,
 		setbits_le32(&ccm->ahb_gate1, 1 << AHB_GATE_OFFSET_LCD1);
 		writel(CCM_LCD1_CTRL_GATE | CCM_LCD1_CTRL_M(div),
 		       &ccm->lcd1_clk_cfg);
+#endif
 	}
 
 	lcdc_init(lcdc);
@@ -330,13 +336,16 @@ static int sunxi_dw_hdmi_enable(struct udevice *dev, int panel_bpp,
 static int sunxi_dw_hdmi_probe(struct udevice *dev)
 {
 	struct sunxi_dw_hdmi_priv *priv = dev_get_priv(dev);
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 	struct sunxi_ccm_reg * const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
+#endif
 	int ret;
 
 	if (priv->hvcc)
 		regulator_set_enable(priv->hvcc, true);
 
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 	/* Set pll3 to 297 MHz */
 	clock_set_pll3(297000000);
 
@@ -346,6 +355,7 @@ static int sunxi_dw_hdmi_probe(struct udevice *dev)
 
 	/* This reset is referenced from the PHY devicetree node. */
 	setbits_le32(&ccm->ahb_reset1_cfg, 1 << AHB_RESET_OFFSET_HDMI2);
+#endif
 
 	ret = reset_deassert_bulk(&priv->resets);
 	if (ret)

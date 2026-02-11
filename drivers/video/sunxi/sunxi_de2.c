@@ -32,8 +32,10 @@ enum {
 
 static void sunxi_de2_composer_init(void)
 {
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 	struct sunxi_ccm_reg * const ccm =
 		(struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
+#endif
 
 #ifdef CONFIG_MACH_SUN50I
 	u32 reg_value;
@@ -44,6 +46,13 @@ static void sunxi_de2_composer_init(void)
 	writel(reg_value, SUNXI_SRAMC_BASE + 0x04);
 #endif
 
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/* T113-S/D1 clocks are handled via absolute offsets or DM CLK */
+	/* DE mod clock at 0x600 */
+	writel(BIT(31) | 1, SUNXI_CCM_BASE + 0x600); /* Gate on, PLL_VIDEO(1X) */
+	/* BUS_DE gate/reset at 0x60c */
+	setbits_le32(SUNXI_CCM_BASE + 0x60c, BIT(16) | BIT(0));
+#else
 	clock_set_pll10(432000000);
 
 	/* Set DE parent to pll10 */
@@ -56,6 +65,7 @@ static void sunxi_de2_composer_init(void)
 
 	/* Clock on */
 	setbits_le32(&ccm->de_clk_cfg, CCM_DE2_CTRL_GATE);
+#endif
 }
 
 static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,

@@ -14,6 +14,35 @@
 #include <asm/arch/lcdc.h>
 #include <asm/io.h>
 
+#define SUNXI_TCON_TOP_BASE 0x05460000
+#define TCON_TOP_PORT_SEL_REG 0x1c
+#define TCON_TOP_GATE_SRC_REG 0x20
+
+void sunxi_tcon_top_setup(int mixer, int tcon)
+{
+	ulong tcon_top = SUNXI_TCON_TOP_BASE;
+	u32 val;
+
+	/* Route mixer to TCON */
+	val = readl(tcon_top + TCON_TOP_PORT_SEL_REG);
+	if (mixer == 0) {
+		val &= ~0x3; /* TCON_TOP_PORT_DE0_MSK */
+		val |= (tcon == 0) ? 0 : 1; /* 0 for LCD0, 1 for TV0 */
+	} else {
+		val &= ~0x30; /* TCON_TOP_PORT_DE1_MSK */
+		val |= (tcon == 0) ? 0x00 : 0x10;
+	}
+	writel(val, tcon_top + TCON_TOP_PORT_SEL_REG);
+
+	/* Enable clock gates in TCON TOP */
+	val = readl(tcon_top + TCON_TOP_GATE_SRC_REG);
+	if (tcon == 0)
+		val |= BIT(16); /* TCON_TOP_TCON_DSI_GATE */
+	else
+		val |= BIT(20); /* TCON_TOP_TCON_TV0_GATE */
+	writel(val, tcon_top + TCON_TOP_GATE_SRC_REG);
+}
+
 static int lcdc_get_clk_delay(const struct display_timing *mode, int tcon)
 {
 	int delay;
@@ -71,7 +100,7 @@ void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
 void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 			 const struct display_timing *mode,
 			 int clk_div, bool for_ext_vga_dac,
-			 int depth, int dclk_phase)
+			 int depth, int dclk_phase, bool dsi_mode)
 {
 	int bp, clk_delay, total, val;
 
@@ -106,7 +135,7 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 	       SUNXI_LCDC_Y(mode->vsync_len.typ), &lcdc->tcon0_timing_sync);
 
 	writel(0, &lcdc->tcon0_hv_intf);
-	writel(0, &lcdc->tcon0_cpu_intf);
+	writel(dsi_mode ? SUNXI_LCDC_TCON0_CPU_IF_MODE_DSI : 0, &lcdc->tcon0_cpu_intf);
 #endif
 #ifdef CONFIG_VIDEO_LCD_IF_LVDS
 	val = (depth == 18) ? 1 : 0;
@@ -314,8 +343,17 @@ void lcdc_pll_set(struct sunxi_ccm_reg *ccm, int tcon, int dotclock,
 		writel(CCM_LCD_CH0_CTRL_GATE | CCM_LCD_CH0_CTRL_RST | pll,
 		       &ccm->lcd0_ch0_clk_cfg);
 #else
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+		/* T113-S/D1 clocks are handled separately or via DM CLK */
+		/* For now, just set the TCON LCD0 mod clock directly */
+		/* TCON_LCD0_CLK_REG at 0xb60 */
+		writel(BIT(31) | 1, SUNXI_CCM_BASE + 0xb60); /* Gate on, PLL_VIDEO(1X) */
+		/* BUS_TCON_LCD0_CLK_REG at 0xb7c */
+		setbits_le32(SUNXI_CCM_BASE + 0xb7c, BIT(16) | BIT(0));
+#else
 		writel(CCM_LCD_CH0_CTRL_GATE | CCM_LCD_CH0_CTRL_RST | pll,
 		       &ccm->lcd0_clk_cfg);
+#endif
 #endif
 	}
 #ifndef CONFIG_SUNXI_DE2

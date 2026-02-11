@@ -333,9 +333,7 @@ config MACH_SUNXI_H3_H5
 	select SUNXI_DRAM_DW
 	select SUNXI_DRAM_DW_32BIT
 	select SUNXI_GEN_SUN6I
-	select SUPPORT_SPL
-
-# TODO: try out A80's 8GiB DRAM space
+	# TODO: try out A80's 8GiB DRAM space
 config SUNXI_DRAM_MAX_SIZE
 	hex
 	default 0x100000000 if MACH_SUN50I_H616 || MACH_SUN50I_A133 || MACH_SUN55I_A523
@@ -474,6 +472,7 @@ config MACH_SUN8I_R528
 	select SUNXI_NEW_PINCTRL
 	select MMC_SUNXI_HAS_NEW_MODE
 	select SUPPORT_SPL
+	select SUNXI_DE2
 	select DRAM_SUN20I_D1
 	imply OF_UPSTREAM
 
@@ -1120,6 +1119,14 @@ config VIDEO_DE2
 	---help---
 	Say y here if you want to build DE2 video driver which is present on
 	newer SoCs. Currently only HDMI output is supported.
+
+config VIDEO_SUNXI_MIPI_DSI
+	bool "Sunxi MIPI DSI video output support"
+	depends on VIDEO_DE2
+	select VIDEO_MIPI_DSI
+	help
+	  Say y here if you want to enable MIPI DSI video output on Sunxi
+	  SoCs.
 
 
 choice

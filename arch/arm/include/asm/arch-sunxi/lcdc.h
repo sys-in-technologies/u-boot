@@ -79,6 +79,7 @@ struct sunxi_lcdc_reg {
 #define SUNXI_LCDC_TCON0_CTRL_ENABLE		(1 << 31)
 #define SUNXI_LCDC_TCON0_DCLK_DIV(n)		((n) << 0)
 #define SUNXI_LCDC_TCON0_DCLK_ENABLE		(0xf << 28)
+#define SUNXI_LCDC_TCON0_CPU_IF_MODE_DSI	(1 << 28)
 #define SUNXI_LCDC_TCON0_TIMING_H_BP(n)		(((n) - 1) << 0)
 #define SUNXI_LCDC_TCON0_TIMING_H_TOTAL(n)	(((n) - 1) << 16)
 #define SUNXI_LCDC_TCON0_TIMING_V_BP(n)		(((n) - 1) << 0)
@@ -119,12 +120,13 @@ void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth);
 void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 			 const struct display_timing *mode,
 			 int clk_div, bool for_ext_vga_dac,
-			 int depth, int dclk_phase);
+			 int depth, int dclk_phase, bool dsi_mode);
 void lcdc_tcon1_mode_set(struct sunxi_lcdc_reg * const lcdc,
 			 const struct display_timing *mode,
 			 bool ext_hvsync, bool is_composite);
 void lcdc_pll_set(struct sunxi_ccm_reg * const ccm, int tcon,
 		  int dotclock, int *clk_div, int *clk_double,
 		  bool is_composite);
+void sunxi_tcon_top_setup(int mixer, int tcon);
 
 #endif /* _LCDC_H */

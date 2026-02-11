@@ -38,25 +38,44 @@ static void sunxi_lcdc_config_pinmux(void)
 static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 			    const struct display_timing *edid)
 {
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 	struct sunxi_ccm_reg * const ccm =
 	       (struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
+#endif
 	struct sunxi_lcdc_reg * const lcdc =
 	       (struct sunxi_lcdc_reg *)SUNXI_LCD0_BASE;
 	struct sunxi_lcd_priv *priv = dev_get_priv(dev);
 	struct udevice *backlight;
 	int clk_div, clk_double, ret;
 
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/* D1/T113 has DPSS_TOP at 0xabc, gate bit 0, reset bit 16 */
+	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xabc, BIT(16));
+	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xabc, BIT(0));
+	/* BUS_TCON_LCD0 at 0xb7c, gate bit 0, reset bit 16 */
+	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(16));
+	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(0));
+	sunxi_tcon_top_setup(0, 0); /* Mixer 0, TCON 0 */
+#else
 	/* Reset off */
 	setbits_le32(&ccm->ahb_reset1_cfg, 1 << AHB_RESET_OFFSET_LCD0);
 	/* Clock on */
 	setbits_le32(&ccm->ahb_gate1, 1 << AHB_GATE_OFFSET_LCD0);
+#endif
 
 	lcdc_init(lcdc);
 	sunxi_lcdc_config_pinmux();
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 	lcdc_pll_set(ccm, 0, edid->pixelclock.typ / 1000,
 		     &clk_div, &clk_double, false);
+#else
+	/* For NCAT2, lcdc_pll_set's first arg is dummy, and we handle clocks manually */
+	lcdc_pll_set(NULL, 0, edid->pixelclock.typ / 1000,
+		     &clk_div, &clk_double, false);
+#endif
 	lcdc_tcon0_mode_set(lcdc, edid, clk_div, false,
-			    priv->panel_bpp, CONFIG_VIDEO_LCD_DCLK_PHASE);
+			    priv->panel_bpp, CONFIG_VIDEO_LCD_DCLK_PHASE,
+			    IS_ENABLED(CONFIG_VIDEO_SUNXI_MIPI_DSI));
 	lcdc_enable(lcdc, priv->panel_bpp);
 
 	ret = uclass_get_device(UCLASS_PANEL_BACKLIGHT, 0, &backlight);
