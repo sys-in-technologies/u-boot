@@ -80,11 +80,23 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	printf("LCD: Setting up PLL...\n");
 	lcdc_pll_set(NULL, 0, edid->pixelclock.typ / 1000,
 		     &clk_div, &clk_double, false);
+#ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
+	/* Allwinner DSI requires TCON divider 4 relative to PLL */
+	clk_div = 4;
+	printf("LCD: Forced clk_div to %d for DSI\n", clk_div);
+#endif
 #endif
 	printf("LCD: Setting TCON0 mode...\n");
+#ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
+	struct display_timing dsi_timing;
+	memcpy(&dsi_timing, edid, sizeof(dsi_timing));
+	dsi_timing.flags |= DISPLAY_FLAGS_HSYNC_LOW | DISPLAY_FLAGS_VSYNC_LOW;
+	lcdc_tcon0_mode_set(lcdc, &dsi_timing, clk_div, false,
+			    priv->panel_bpp, CONFIG_VIDEO_LCD_DCLK_PHASE);
+#else
 	lcdc_tcon0_mode_set(lcdc, edid, clk_div, false,
-			    priv->panel_bpp, CONFIG_VIDEO_LCD_DCLK_PHASE,
-			    IS_ENABLED(CONFIG_VIDEO_SUNXI_MIPI_DSI));
+			    priv->panel_bpp, CONFIG_VIDEO_LCD_DCLK_PHASE);
+#endif
 	printf("LCD: Enabling LCDC...\n");
 	lcdc_enable(lcdc, priv->panel_bpp);
 
@@ -134,6 +146,8 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 		ret = panel_enable_backlight(panel);
 		if (ret)
 			printf("LCD: MIPI DSI panel enable failed: %d\n", ret);
+
+		mdelay(200);
 
 		printf("LCD: Enabling DSI host...\n");
 		ret = dsi_host_enable(dsi_host);

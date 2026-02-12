@@ -121,7 +121,7 @@ void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth);
 void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 			 const struct display_timing *mode,
 			 int clk_div, bool for_ext_vga_dac,
-			 int depth, int dclk_phase, bool dsi_mode);
+			 int depth, int dclk_phase);
 void lcdc_tcon1_mode_set(struct sunxi_lcdc_reg * const lcdc,
 			 const struct display_timing *mode,
 			 bool ext_hvsync, bool is_composite);

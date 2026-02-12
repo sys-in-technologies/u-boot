@@ -23,45 +23,51 @@ struct sunxi_ccm_reg {
 static inline void clock_set_pll3(unsigned int hz)
 {
 	u32 n = hz / 24000000;
-	if (n < 11) n = 11; /* Min 264MHz per spec */
+	if (n < 8) n = 8;
 	if (n > 100) n = 100;
 	
-	/* D1/T113 PLL_VIDEO0 at 0x0040: EN(27), LOCK(28), OUT_EN(31), LDO(25:24)=3, N(15:8), M(0)=0 */
-	u32 reg = BIT(31) | BIT(27) | (3 << 24) | ((n - 1) << 8);
+	u32 reg = readl((u8 *)SUNXI_CCM_BASE + 0x40);
+	reg &= ~((0xff << 8) | 0x3); /* Clear N (15:8) and M (1:0) */
+	reg |= ((n - 1) << 8);
+	/* Set EN(27), LOCK_EN(29), LDO_EN(25:24), and OUT_EN(31), plus BIT(30) per Linux probe */
+	reg |= BIT(31) | BIT(30) | BIT(29) | BIT(27) | (3 << 24);
+	
 	printf("CCU: PLL_VIDEO0 setup: %u Hz (n=%u, reg=0x%08x)\n", hz, n, reg);
 	writel(reg, (u8 *)SUNXI_CCM_BASE + 0x40);
+	mdelay(5);
 	
 	int timeout = 2000;
 	while (!(readl((u8 *)SUNXI_CCM_BASE + 0x40) & BIT(28)) && timeout--)
 		udelay(10);
 	
+	u32 final = readl((u8 *)SUNXI_CCM_BASE + 0x40);
 	if (timeout <= 0)
-		printf("CCU: PLL_VIDEO0 lock timeout! (reg=0x%08x)\n", readl((u8 *)SUNXI_CCM_BASE + 0x40));
+		printf("CCU: PLL_VIDEO0 lock timeout! (reg=0x%08x)\n", final);
+	else
+		printf("CCU: PLL_VIDEO0 locked.\n");
 }
 
 static inline unsigned int clock_get_pll3(void)
 {
 	u32 reg = readl((u8 *)SUNXI_CCM_BASE + 0x40);
 	u32 n = ((reg >> 8) & 0xff) + 1;
-	return n * 24000000;
+	u32 m = (reg & 0x1) + 1;
+	return (n * 24000000) / m;
 }
 
 static inline void clock_set_pll10(unsigned int hz)
 {
 	u32 n = hz / 24000000;
-	if (n < 11) n = 11;
-	
-	/* D1/T113 PLL_VIDEO1 at 0x0048: same layout as PLL_VIDEO0 */
-	u32 reg = BIT(31) | BIT(27) | (3 << 24) | ((n - 1) << 8);
-	printf("CCU: PLL_VIDEO1 setup: %u Hz (n=%u, reg=0x%08x)\n", hz, n, reg);
+	if (n < 8) n = 8;
+	u32 reg = readl((u8 *)SUNXI_CCM_BASE + 0x48);
+	reg &= ~((0xff << 8) | 0x1);
+	reg |= ((n - 1) << 8);
+	reg |= BIT(31) | BIT(30) | BIT(29) | BIT(27);
 	writel(reg, (u8 *)SUNXI_CCM_BASE + 0x48);
 	
 	int timeout = 2000;
 	while (!(readl((u8 *)SUNXI_CCM_BASE + 0x48) & BIT(28)) && timeout--)
 		udelay(10);
-	
-	if (timeout <= 0)
-		printf("CCU: PLL_VIDEO1 lock timeout!\n");
 }
 #else
 static inline void clock_set_pll3(unsigned int hz) {}
@@ -73,14 +79,14 @@ static inline void clock_set_mipi_pll(unsigned int hz) {}
 static inline unsigned int clock_get_mipi_pll(void) { return 0; }
 static inline void clock_set_pll3_factors(int m, int n) {}
 
-#define CCM_LCD_CH0_CTRL_PLL3		0
-#define CCM_LCD_CH0_CTRL_PLL3_2X	0
-#define CCM_LCD_CH0_CTRL_MIPI_PLL	0
-#define CCM_LCD_CH0_CTRL_GATE		0
-#define CCM_LCD_CH0_CTRL_RST		0
-#define CCM_DE2_CTRL_PLL_MASK		0
-#define CCM_DE2_CTRL_PLL10		0
-#define CCM_DE2_CTRL_GATE		0
+#define CCM_LCD_CH0_CTRL_PLL3		(1 << 24)
+#define CCM_LCD_CH0_CTRL_PLL3_2X	(2 << 24)
+#define CCM_LCD_CH0_CTRL_MIPI_PLL	(0)
+#define CCM_LCD_CH0_CTRL_GATE		(1U << 31)
+#define CCM_LCD_CH0_CTRL_RST		(0)
+#define CCM_DE2_CTRL_PLL_MASK		(0)
+#define CCM_DE2_CTRL_PLL10		(0)
+#define CCM_DE2_CTRL_GATE		(1U << 31)
 
 #define AHB_RESET_OFFSET_LCD0		0
 #define AHB_GATE_OFFSET_LCD0		0

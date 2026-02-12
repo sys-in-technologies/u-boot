@@ -74,6 +74,12 @@ void lcdc_init(struct sunxi_lcdc_reg * const lcdc)
 void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
 {
 	setbits_le32(&lcdc->ctrl, SUNXI_LCDC_CTRL_TCON_ENABLE);
+
+#ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
+	setbits_le32(&lcdc->tcon0_cpu_intf, 1 << 16); /* SUN4I_TCON0_CPU_IF_TRI_FIFO_FLUSH */
+	udelay(1);
+	clrbits_le32(&lcdc->tcon0_cpu_intf, 1 << 16);
+#endif
 #ifdef CONFIG_VIDEO_LCD_IF_LVDS
 	setbits_le32(&lcdc->tcon0_lvds_intf, SUNXI_LCDC_TCON0_LVDS_INTF_ENABLE);
 	setbits_le32(&lcdc->lvds_ana0, SUNXI_LCDC_LVDS_ANA0);
@@ -100,7 +106,7 @@ void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
 void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 			 const struct display_timing *mode,
 			 int clk_div, bool for_ext_vga_dac,
-			 int depth, int dclk_phase, bool dsi_mode)
+			 int depth, int dclk_phase)
 {
 	int bp, clk_delay, total, val;
 
@@ -113,8 +119,9 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 	clk_delay = lcdc_get_clk_delay(mode, 0);
 	val = SUNXI_LCDC_TCON0_CTRL_ENABLE |
 	      SUNXI_LCDC_TCON0_CTRL_CLK_DELAY(clk_delay);
-	if (dsi_mode)
-		val |= SUNXI_LCDC_TCON0_CTRL_IF_8080;
+#ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
+	val |= SUNXI_LCDC_TCON0_CTRL_IF_8080;
+#endif
 	writel(val, &lcdc->tcon0_ctrl);
 
 	writel(SUNXI_LCDC_TCON0_DCLK_ENABLE |
@@ -138,7 +145,11 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 	       SUNXI_LCDC_Y(mode->vsync_len.typ), &lcdc->tcon0_timing_sync);
 
 	writel(0, &lcdc->tcon0_hv_intf);
-	writel(dsi_mode ? SUNXI_LCDC_TCON0_CPU_IF_MODE_DSI : 0, &lcdc->tcon0_cpu_intf);
+#ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
+	writel(SUNXI_LCDC_TCON0_CPU_IF_MODE_DSI, &lcdc->tcon0_cpu_intf);
+#else
+	writel(0, &lcdc->tcon0_cpu_intf);
+#endif
 #endif
 #ifdef CONFIG_VIDEO_LCD_IF_LVDS
 	val = (depth == 18) ? 1 : 0;
@@ -347,11 +358,11 @@ void lcdc_pll_set(struct sunxi_ccm_reg *ccm, int tcon, int dotclock,
 		       &ccm->lcd0_ch0_clk_cfg);
 #else
 #ifdef CONFIG_SUNXI_GEN_NCAT2
-		/* T113-S/D1 clocks are handled separately or via DM CLK */
-		/* For now, just set the TCON LCD0 mod clock directly */
-		/* TCON_LCD0_CLK_REG at 0xb60 */
-		writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0xb60); /* Gate on, PLL_VIDEO(1X) */
-		/* BUS_TCON_LCD0_CLK_REG at 0xb7c */
+		/* T113-S/D1: TCON_LCD0_CLK_REG at 0xb60.
+		 * Set source to PLL_VIDEO0(1X) (0 << 24) and enable gate (31)
+		 */
+		writel(BIT(31) | (0 << 24), (u8 *)SUNXI_CCM_BASE + 0xb60);
+		/* BUS_TCON_LCD0_CLK_REG at 0xb7c: Enable gate(0) and reset(16) */
 		setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(16) | BIT(0));
 #else
 		writel(CCM_LCD_CH0_CTRL_GATE | CCM_LCD_CH0_CTRL_RST | pll,

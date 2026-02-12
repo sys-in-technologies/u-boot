@@ -513,6 +513,8 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi_priv *dsi,
 	int Bpp = mipi_dsi_pixel_format_to_bpp(device->format) / 8;
 	u16 hbp = 0, hfp = 0, hsa = 0, hblk = 0;
 	u32 basic_ctl = 0;
+	u8 buffer[256]; /* Max blanking size */
+	u16 crc;
 
 	if (device->mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
 		hblk = timing->hactive.typ * Bpp;
@@ -560,19 +562,30 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi_priv *dsi,
 	       SUN6I_DSI_BASIC_SIZE1_VT(timing->vactive.typ + timing->vfront_porch.typ + timing->vback_porch.typ + timing->vsync_len.typ),
 	       dsi->regs + SUN6I_DSI_BASIC_SIZE1_REG);
 
-	/* sync, backporch, frontporch, hblk, vblk - using 0 for CRC since we don't have the buffer here */
+	/* Prepare a blank buffer for CRC calculation */
+	memset(buffer, 0, sizeof(buffer));
+
+	/* sync */
+	crc = sun6i_dsi_crc_compute(buffer, hsa);
 	writel(sun6i_dsi_build_blk0_pkt(device->channel, hsa), dsi->regs + SUN6I_DSI_BLK_HSA0_REG);
-	writel(sun6i_dsi_build_blk1_pkt(0, 0xffff, hsa), dsi->regs + SUN6I_DSI_BLK_HSA1_REG);
+	writel(sun6i_dsi_build_blk1_pkt(0, crc, hsa), dsi->regs + SUN6I_DSI_BLK_HSA1_REG);
 
+	/* backporch */
+	crc = sun6i_dsi_crc_compute(buffer, hbp);
 	writel(sun6i_dsi_build_blk0_pkt(device->channel, hbp), dsi->regs + SUN6I_DSI_BLK_HBP0_REG);
-	writel(sun6i_dsi_build_blk1_pkt(0, 0xffff, hbp), dsi->regs + SUN6I_DSI_BLK_HBP1_REG);
+	writel(sun6i_dsi_build_blk1_pkt(0, crc, hbp), dsi->regs + SUN6I_DSI_BLK_HBP1_REG);
 
+	/* frontporch */
+	crc = sun6i_dsi_crc_compute(buffer, hfp);
 	writel(sun6i_dsi_build_blk0_pkt(device->channel, hfp), dsi->regs + SUN6I_DSI_BLK_HFP0_REG);
-	writel(sun6i_dsi_build_blk1_pkt(0, 0xffff, hfp), dsi->regs + SUN6I_DSI_BLK_HFP1_REG);
+	writel(sun6i_dsi_build_blk1_pkt(0, crc, hfp), dsi->regs + SUN6I_DSI_BLK_HFP1_REG);
 
+	/* hblk */
+	crc = sun6i_dsi_crc_compute(buffer, hblk);
 	writel(sun6i_dsi_build_blk0_pkt(device->channel, hblk), dsi->regs + SUN6I_DSI_BLK_HBLK0_REG);
-	writel(sun6i_dsi_build_blk1_pkt(0, 0xffff, hblk), dsi->regs + SUN6I_DSI_BLK_HBLK1_REG);
+	writel(sun6i_dsi_build_blk1_pkt(0, crc, hblk), dsi->regs + SUN6I_DSI_BLK_HBLK1_REG);
 
+	/* vblk */
 	writel(sun6i_dsi_build_blk0_pkt(device->channel, 0), dsi->regs + SUN6I_DSI_BLK_VBLK0_REG);
 	writel(sun6i_dsi_build_blk1_pkt(0, 0xffff, 0), dsi->regs + SUN6I_DSI_BLK_VBLK1_REG);
 }
@@ -909,9 +922,10 @@ static int sun6i_dsi_probe(struct udevice *dev)
 
 	if (dsi->variant->has_mod_clk) {
 #ifdef CONFIG_SUNXI_GEN_NCAT2
-		/* T113-S/D1: DSI mod clock at 0xb24, gate bit 31, source PLL_VIDEO(1X) */
-		printf("DSI: Enabling mod clock (NCAT2)...\n");
-		writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0xb24);
+		/* T113-S/D1: DSI mod clock at 0xb24.
+		 * Set source to PLL_VIDEO0(1X) (0 << 24) and enable gate (31)
+		 */
+		writel(BIT(31) | (0 << 24), (u8 *)SUNXI_CCM_BASE + 0xb24);
 #else
 		ret = clk_get_by_name(dev, "mod", &dsi->mod_clk);
 		if (!ret) {

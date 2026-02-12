@@ -1105,6 +1105,9 @@ config VIDEO_LCD_IF_PARALLEL
 config VIDEO_LCD_IF_LVDS
 	bool
 
+config VIDEO_LCD_IF_MIPI_DSI
+	bool
+
 config SUNXI_DE2
 	bool
 
@@ -1124,6 +1127,7 @@ config VIDEO_SUNXI_MIPI_DSI
 	bool "Sunxi MIPI DSI video output support"
 	depends on VIDEO_DE2
 	select VIDEO_MIPI_DSI
+	select VIDEO_LCD_IF_MIPI_DSI
 	help
 	  Say y here if you want to enable MIPI DSI video output on Sunxi
 	  SoCs.
