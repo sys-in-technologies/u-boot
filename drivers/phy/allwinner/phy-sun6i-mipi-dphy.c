@@ -17,6 +17,7 @@
 #include <linux/bitops.h>
 #include <linux/delay.h>
 #include <asm/arch/cpu.h>
+#include <asm/arch/clock.h>
 #include <linux/log2.h>
 
 #include <phy-mipi-dphy.h>
@@ -260,6 +261,30 @@ static int sun6i_dphy_init(struct phy *phy)
 	int ret;
 
 	printf("DPHY: Initializing...\n");
+
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/*
+	 * Set CLK_MIPI_DSI (0xb24) to the correct source and rate now that
+	 * PLL_VIDEO0 has been configured by sunxi_lcd_enable().
+	 *
+	 * Linux uses pll_video0_2x (mux=2) with M divider to get 150 MHz.
+	 * clock_get_pll3() returns PLL_VIDEO0_4X, so pll_video0_2x = PLL_4X / 2.
+	 */
+	{
+		u32 pll_4x = clock_get_pll3();
+		u32 pll_2x = pll_4x / 2;
+		u32 m_div = DIV_ROUND_UP(pll_2x, 150000000);
+		u32 actual_rate = pll_2x / m_div;
+
+		printf("DPHY: CLK_MIPI_DSI: PLL_4X=%u, PLL_2X=%u, M=%u, actual=%u Hz\n",
+		       pll_4x, pll_2x, m_div, actual_rate);
+
+		/* mux=2 (pll_video0_2x), M=(m_div-1), gate on */
+		writel(BIT(31) | (2 << 24) | (m_div - 1),
+		       (u8 *)SUNXI_CCM_BASE + 0xb24);
+	}
+#endif
+
 	ret = reset_deassert(&priv->reset);
 	if (ret) {
 		dev_err(phy->dev, "Failed to deassert reset: %d\n", ret);
@@ -427,9 +452,13 @@ static int sun6i_dphy_probe(struct udevice *dev)
 	priv->variant = (enum sun6i_dphy_type)dev_get_driver_data(dev);
 
 #ifdef CONFIG_SUNXI_GEN_NCAT2
-	/* T113-S/D1: DPHY mod clock at 0xb24 (shared with DSI), gate bit 31, source PLL_VIDEO(1X) */
-	/* We already enable it in DSI driver, but let's be sure */
-	writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0xb24);
+	/*
+	 * T113-S/D1: CLK_MIPI_DSI at 0xb24 is the D-PHY mod clock.
+	 * Enable gate only here; the correct source (pll_video0_2x, mux=2)
+	 * and M divider for 150 MHz will be set in sun6i_dphy_init() after
+	 * PLL_VIDEO0 is configured by sunxi_lcd_enable().
+	 */
+	writel(BIT(31), (u8 *)SUNXI_CCM_BASE + 0xb24);
 	/* DPHY BUS gate/reset at 0xb4c (shared with DSI) */
 	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb4c, BIT(16) | BIT(0));
 #endif

@@ -922,10 +922,14 @@ static int sun6i_dsi_probe(struct udevice *dev)
 
 	if (dsi->variant->has_mod_clk) {
 #ifdef CONFIG_SUNXI_GEN_NCAT2
-		/* T113-S/D1: DSI mod clock at 0xb24.
-		 * Set source to PLL_VIDEO0(1X) (0 << 24) and enable gate (31)
+		/*
+		 * T113-S/D1: The DSI controller's mod clock comes from
+		 * TCON_TOP's DSI gate (CLK_TCON_TOP_DSI), which passes
+		 * through CLK_TCON_LCD0. This is already enabled by
+		 * sunxi_tcon_top_setup(). Register 0xb24 is the D-PHY
+		 * mod clock, NOT the DSI controller mod clock — that is
+		 * handled by the D-PHY driver.
 		 */
-		writel(BIT(31) | (0 << 24), (u8 *)SUNXI_CCM_BASE + 0xb24);
 #else
 		ret = clk_get_by_name(dev, "mod", &dsi->mod_clk);
 		if (!ret) {

@@ -72,19 +72,62 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	printf("LCD: Initializing LCDC...\n");
 	lcdc_init(lcdc);
 	sunxi_lcdc_config_pinmux();
-#ifndef CONFIG_SUNXI_GEN_NCAT2
-	lcdc_pll_set(ccm, 0, edid->pixelclock.typ / 1000,
-		     &clk_div, &clk_double, false);
-#else
-	/* For NCAT2, lcdc_pll_set's first arg is dummy, and we handle clocks manually */
+#if defined(CONFIG_SUNXI_GEN_NCAT2) && defined(CONFIG_VIDEO_LCD_IF_MIPI_DSI)
+	/*
+	 * DSI clock fix: For DSI on NCAT2, the TCON needs
+	 *   TCON_LCD0_CLK = pixel_clock * bpp / lanes
+	 * which is the DSI bit clock per lane. The clock chain is:
+	 *   PLL_VIDEO0_4X -> /4 -> pll_video0_1x = TCON_LCD0_CLK
+	 *   TCON_LCD0_CLK -> /4 (TCON0_DCLK div) -> pixel clock to panel
+	 *
+	 * lcdc_pll_set() calculates for raw pixel clock which is ~8x too low.
+	 * Bypass it entirely and set PLL_VIDEO0_4X directly.
+	 */
+	{
+		struct udevice *panel_dev;
+		unsigned int panel_bpp = priv->panel_bpp;
+		unsigned int lanes = 4; /* default */
+		unsigned long dsi_bit_clk, pll_rate;
+
+		ret = uclass_get_device(UCLASS_PANEL, 0, &panel_dev);
+		if (!ret) {
+			struct mipi_dsi_panel_plat *plat = dev_get_plat(panel_dev);
+			if (plat && plat->device) {
+				lanes = plat->device->lanes;
+				panel_bpp = mipi_dsi_pixel_format_to_bpp(plat->format);
+			}
+		}
+
+		/* DSI bit clock per lane = pixel_clock * bpp / lanes */
+		dsi_bit_clk = (unsigned long)edid->pixelclock.typ * panel_bpp / lanes;
+		/* PLL_VIDEO0_4X = TCON_LCD0_CLK * 4 (mux=0 selects pll_video0_1x) */
+		pll_rate = dsi_bit_clk * 4;
+
+		printf("LCD: DSI clock: pixel=%u bpp=%u lanes=%u -> dsi_bit_clk=%lu, PLL_4X=%lu\n",
+		       edid->pixelclock.typ, panel_bpp, lanes, dsi_bit_clk, pll_rate);
+
+		clock_set_pll3(pll_rate);
+
+		/* TCON_LCD0_CLK: mux=0 (pll_video0_1x), M=0 P=0 (div-by-1), gate on */
+		writel(BIT(31) | (0 << 24), (u8 *)SUNXI_CCM_BASE + 0xb60);
+		/* BUS_TCON_LCD0: gate + reset */
+		setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(16) | BIT(0));
+
+		/* SUN6I_DSI_TCON_DIV = 4 */
+		clk_div = 4;
+		clk_double = 0;
+
+		printf("LCD: PLL_VIDEO0_4X readback = %u Hz, clk_div=%d\n",
+		       clock_get_pll3(), clk_div);
+	}
+#elif defined(CONFIG_SUNXI_GEN_NCAT2)
+	/* NCAT2 non-DSI path */
 	printf("LCD: Setting up PLL...\n");
 	lcdc_pll_set(NULL, 0, edid->pixelclock.typ / 1000,
 		     &clk_div, &clk_double, false);
-#ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
-	/* Allwinner DSI requires TCON divider 4 relative to PLL */
-	clk_div = 4;
-	printf("LCD: Forced clk_div to %d for DSI\n", clk_div);
-#endif
+#else
+	lcdc_pll_set(ccm, 0, edid->pixelclock.typ / 1000,
+		     &clk_div, &clk_double, false);
 #endif
 	printf("LCD: Setting TCON0 mode...\n");
 #ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
