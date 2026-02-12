@@ -32,7 +32,7 @@ static inline void clock_set_pll3(unsigned int hz)
 	/* Set EN(27), LOCK_EN(29), LDO_EN(25:24), and OUT_EN(31), plus BIT(30) per Linux probe */
 	reg |= BIT(31) | BIT(30) | BIT(29) | BIT(27) | (3 << 24);
 	
-	printf("CCU: PLL_VIDEO0 setup: %u Hz (n=%u, reg=0x%08x)\n", hz, n, reg);
+	printf("CCU: PLL_VIDEO0 setup: %u Hz (n=%u, reg=0x%08x), base=0x%x\n", hz, n, reg, SUNXI_CCM_BASE);
 	writel(reg, (u8 *)SUNXI_CCM_BASE + 0x40);
 	mdelay(5);
 	
@@ -52,6 +52,7 @@ static inline unsigned int clock_get_pll3(void)
 	u32 reg = readl((u8 *)SUNXI_CCM_BASE + 0x40);
 	u32 n = ((reg >> 8) & 0xff) + 1;
 	u32 m = (reg & 0x1) + 1;
+	printf("CCU: PLL_VIDEO0 get: (n=%u, reg=0x%08x)\n", n, reg);
 	return (n * 24000000) / m;
 }
 
