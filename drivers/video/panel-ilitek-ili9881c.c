@@ -325,6 +325,7 @@ static int ili9881c_enable_backlight(struct udevice *dev)
 	dm_gpio_set_value(&priv->reset, 0); /* Back to High */
 	mdelay(120);
 
+	printf("Panel: Sending %d init commands...\n", priv->desc->init_length);
 	for (i = 0; i < priv->desc->init_length; i++) {
 		const struct ili9881c_instr *instr = &priv->desc->init[i];
 
@@ -334,19 +335,32 @@ static int ili9881c_enable_backlight(struct udevice *dev)
 			ret = mipi_dsi_dcs_write(dsi, instr->arg.cmd.cmd,
 						 &instr->arg.cmd.data, 1);
 
-		if (ret < 0)
+		if (ret < 0) {
+			printf("Panel: Init command %d failed: %d\n", i, ret);
 			return ret;
+		}
 	}
+	printf("Panel: Init commands complete.\n");
 
+	printf("Panel: Sending exit_sleep_mode...\n");
 	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
-	if (ret < 0)
+	if (ret < 0) {
+		printf("Panel: exit_sleep_mode failed: %d\n", ret);
 		return ret;
+	}
 
 	mdelay(200);
 
+	printf("Panel: Sending set_display_on...\n");
 	ret = mipi_dsi_dcs_set_display_on(dsi);
-	if (ret < 0)
+	if (ret < 0) {
+		printf("Panel: set_display_on failed: %d\n", ret);
 		return ret;
+	}
+	printf("Panel: Display on command sent.\n");
+
+	/* Wait for panel to stabilize after display on */
+	mdelay(100);
 
 	mdelay(20);
 

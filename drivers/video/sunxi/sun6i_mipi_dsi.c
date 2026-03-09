@@ -753,6 +753,8 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 	struct sun6i_dsi_priv *dsi = host_to_sun6i_dsi(host);
 	int ret;
 
+	printf("DSI: transfer type=0x%02x len=%zu\n", msg->type, msg->tx_len);
+
 	ret = sun6i_dsi_inst_wait_for_completion(dsi);
 	if (ret < 0) {
 		printf("DSI: transfer: wait for completion failed: %d\n", ret);
@@ -783,8 +785,12 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 		/* Fall through */
 
 	default:
+		printf("DSI: transfer: unsupported message type 0x%02x\n", msg->type);
 		ret = -EINVAL;
 	}
+
+	if (ret < 0)
+		printf("DSI: transfer failed: %d\n", ret);
 
 	return ret;
 }
@@ -893,9 +899,20 @@ static int sun6i_dsi_enable(struct udevice *dev)
 {
 	struct sun6i_dsi_priv *dsi = dev_get_priv(dev);
 
+	printf("DSI: enable starting (starting HSC then HSD)...\n");
 	sun6i_dsi_start(dsi, DSI_START_HSC);
 	udelay(1000);
 	sun6i_dsi_start(dsi, DSI_START_HSD);
+
+	printf("DSI: Video mode started. Register dump:\n");
+	printf("DSI: CTL=0x%08x BASIC_CTL=0x%08x BASIC_CTL0=0x%08x BASIC_CTL1=0x%08x\n",
+	       readl(dsi->regs + SUN6I_DSI_CTL_REG),
+	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL_REG),
+	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL0_REG),
+	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL1_REG));
+	printf("DSI: INST_FUNC=0x%08x INST_JUMP_SEL=0x%08x\n",
+	       readl(dsi->regs + SUN6I_DSI_INST_FUNC_REG(DSI_INST_ID_LP11)),
+	       readl(dsi->regs + SUN6I_DSI_INST_JUMP_SEL_REG));
 
 	return 0;
 }
