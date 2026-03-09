@@ -110,12 +110,22 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 
 		/* TCON_LCD0_CLK: mux=0 (pll_video0_1x), M=0 P=0 (div-by-1), gate on */
 		writel(BIT(31) | (0 << 24), (u8 *)SUNXI_CCM_BASE + 0xb60);
+		printf("LCD: CLK_TCON_LCD0 (0xb60) set to 0x%08x\n",
+		       readl((u8 *)SUNXI_CCM_BASE + 0xb60));
+
 		/* BUS_TCON_LCD0: gate + reset */
 		setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(16) | BIT(0));
 
-		/* SUN6I_DSI_TCON_DIV = 4 */
+		/*
+		 * SUN6I_DSI_TCON_DIV = 4
+		 * This is the TCON internal divider (TCON register 0x44).
+		 * Linux: "dclk is required to run at 1/4 the DSI per-lane bit rate"
+		 * TCON_LCD0_CLK (399 MHz) / 4 = 99.75 MHz (for DSI timing, not pixel clock)
+		 */
 		clk_div = 4;
 		clk_double = 0;
+
+		printf("LCD: TCON dclk divider = %d (SUN6I_DSI_TCON_DIV)\n", clk_div);
 
 		printf("LCD: PLL_VIDEO0_4X readback = %u Hz, clk_div=%d\n",
 		       clock_get_pll3(), clk_div);

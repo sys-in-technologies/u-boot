@@ -122,6 +122,7 @@ enum sun6i_dphy_type {
 
 struct sun6i_dphy_priv {
 	void __iomem *regs;
+	struct clk bus_clk;
 	struct clk mod_clk;
 	struct reset_ctl reset;
 	struct phy_configure_opts_mipi_dphy config;
@@ -262,49 +263,57 @@ static int sun6i_dphy_init(struct phy *phy)
 
 	printf("DPHY: Initializing...\n");
 
-#ifdef CONFIG_SUNXI_GEN_NCAT2
-	/*
-	 * Set CLK_MIPI_DSI (0xb24) to the correct source and rate now that
-	 * PLL_VIDEO0 has been configured by sunxi_lcd_enable().
-	 *
-	 * Linux uses pll_video0_2x (mux=2) with M divider to get 150 MHz.
-	 * clock_get_pll3() returns PLL_VIDEO0_4X, so pll_video0_2x = PLL_4X / 2.
-	 */
-	{
-		u32 pll_4x = clock_get_pll3();
-		u32 pll_2x = pll_4x / 2;
-		u32 m_div = DIV_ROUND_UP(pll_2x, 150000000);
-		u32 actual_rate = pll_2x / m_div;
-
-		printf("DPHY: CLK_MIPI_DSI: PLL_4X=%u, PLL_2X=%u, M=%u, actual=%u Hz\n",
-		       pll_4x, pll_2x, m_div, actual_rate);
-
-		/* mux=2 (pll_video0_2x), M=(m_div-1), gate on */
-		writel(BIT(31) | (2 << 24) | (m_div - 1),
-		       (u8 *)SUNXI_CCM_BASE + 0xb24);
-	}
-#endif
-
-	ret = reset_deassert(&priv->reset);
+	/* Enable bus clock for register access */
+	ret = clk_enable(&priv->bus_clk);
 	if (ret) {
-		dev_err(phy->dev, "Failed to deassert reset: %d\n", ret);
+		dev_err(phy->dev, "Failed to enable bus clock: %d\n", ret);
 		return ret;
 	}
 
+	/* Deassert reset */
+	ret = reset_deassert(&priv->reset);
+	if (ret) {
+		dev_err(phy->dev, "Failed to deassert reset: %d\n", ret);
+		clk_disable(&priv->bus_clk);
+		return ret;
+	}
+
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/*
+	 * Configure CLK_MIPI_DSI (CCU 0xb24) before enabling.
+	 * U-Boot's CCU driver only supports gate control, not mux/divider,
+	 * so we must configure the register directly.
+	 *
+	 * From Linux: mipi_dsi_parents[1] = pll_periph0 (600 MHz)
+	 * Target: 150 MHz for D-PHY digital core
+	 * Register: 0x81000003 (mux=1, M=3, gate will be set by clk_enable)
+	 */
+	{
+		u32 pll_periph0 = 600000000;
+		u32 target_rate = 150000000;
+		u32 m_div = pll_periph0 / target_rate; /* = 4 */
+
+		/* Configure mux and divider (gate will be controlled by clock framework) */
+		writel((1 << 24) | (m_div - 1), (u8 *)SUNXI_CCM_BASE + 0xb24);
+
+		printf("DPHY: CLK_MIPI_DSI configured: mux=1 (pll_periph0), M=%u, rate=%u MHz\n",
+		       m_div, pll_periph0 / m_div / 1000000);
+	}
+#endif
+
+	/* Enable module clock (this will set bit 31 of 0xb24) */
 	ret = clk_enable(&priv->mod_clk);
 	if (ret) {
 		dev_err(phy->dev, "Failed to enable mod clock: %d\n", ret);
 		reset_assert(&priv->reset);
+		clk_disable(&priv->bus_clk);
 		return ret;
 	}
 
-	ret = clk_set_rate(&priv->mod_clk, 150000000);
-	if (ret < 0 && ret != -ENOSYS) {
-		dev_err(phy->dev, "Failed to set mod clock rate: %d\n", ret);
-		clk_disable(&priv->mod_clk);
-		reset_assert(&priv->reset);
-		return ret;
-	}
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	printf("DPHY: CLK_MIPI_DSI final value = 0x%08x\n",
+	       readl((u8 *)SUNXI_CCM_BASE + 0xb24));
+#endif
 
 	return 0;
 }
@@ -434,6 +443,7 @@ static int sun6i_dphy_exit(struct phy *phy)
 
 	clk_disable(&priv->mod_clk);
 	reset_assert(&priv->reset);
+	clk_disable(&priv->bus_clk);
 
 	return 0;
 }
@@ -451,30 +461,31 @@ static int sun6i_dphy_probe(struct udevice *dev)
 
 	priv->variant = (enum sun6i_dphy_type)dev_get_driver_data(dev);
 
-#ifdef CONFIG_SUNXI_GEN_NCAT2
-	/*
-	 * T113-S/D1: CLK_MIPI_DSI at 0xb24 is the D-PHY mod clock.
-	 * Enable gate only here; the correct source (pll_video0_2x, mux=2)
-	 * and M divider for 150 MHz will be set in sun6i_dphy_init() after
-	 * PLL_VIDEO0 is configured by sunxi_lcd_enable().
-	 */
-	writel(BIT(31), (u8 *)SUNXI_CCM_BASE + 0xb24);
-	/* DPHY BUS gate/reset at 0xb4c (shared with DSI) */
-	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb4c, BIT(16) | BIT(0));
-#endif
-
-	ret = clk_get_by_name(dev, "mod", &priv->mod_clk);
+	/* Get bus clock from device tree (for register access) */
+	ret = clk_get_by_name(dev, "bus", &priv->bus_clk);
 	if (ret) {
-		printf("DPHY: Failed to get mod clock: %d\n", ret);
+		printf("DPHY: Warning: Failed to get bus clock: %d\n", ret);
 #ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
 #endif
 	}
 
+	/* Get module clock from device tree (for PHY operation) */
+	ret = clk_get_by_name(dev, "mod", &priv->mod_clk);
+	if (ret) {
+		printf("DPHY: Warning: Failed to get mod clock: %d\n", ret);
+#ifndef CONFIG_SUNXI_GEN_NCAT2
+		return ret;
+#endif
+	}
+
+	/* Get reset control from device tree */
 	ret = reset_get_by_index(dev, 0, &priv->reset);
 	if (ret) {
-		printf("DPHY: Failed to get reset: %d\n", ret);
+		printf("DPHY: Warning: Failed to get reset: %d\n", ret);
+#ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
+#endif
 	}
 
 	printf("DPHY: Probe successful.\n");
