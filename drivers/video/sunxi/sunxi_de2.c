@@ -109,9 +109,11 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 
 	printf("DE2: global registers access...\n");
 	writel(SUNXI_DE2_MUX_GLB_CTL_EN, &de_glb_regs->ctl);
+	printf("DE2: GLB_CTL_EN written (enable bit=0x%08x)\n", SUNXI_DE2_MUX_GLB_CTL_EN);
 	writel(0, &de_glb_regs->status);
 	writel(1, &de_glb_regs->dbuff);
 	writel(size, &de_glb_regs->size);
+	printf("DE2: Global config: size=0x%08x dbuff=1\n", size);
 
 	for (channel = 0; channel < 4; channel++) {
 		void *ch = (void *)(de_mux_base + SUNXI_DE2_MUX_CHAN_REGS +
@@ -121,18 +123,16 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	}
 	memset(de_bld_regs, 0, sizeof(struct de_bld));
 
-	writel(0x00000101, &de_bld_regs->fcolor_ctl);
-
+	writel(BIT(8), &de_bld_regs->fcolor_ctl); /* Enable pipe 0 (PIPE_CTL) */
 	writel(1, &de_bld_regs->route);
-
 	writel(0, &de_bld_regs->premultiply);
 	writel(0xff000000, &de_bld_regs->bkcolor);
-
 	writel(0x03010301, &de_bld_regs->bld_mode[0]);
-
 	writel(size, &de_bld_regs->output_size);
 	writel(mode->flags & DISPLAY_FLAGS_INTERLACED ? 2 : 0,
 	       &de_bld_regs->out_ctl);
+	printf("DE2: Blender config: pipe_ctl=0x%08x route=0x%08x bld_mode[0]=0x%08x\n",
+	       BIT(8), 1, 0x03010301);
 	writel(0, &de_bld_regs->ck_ctl);
 
 	writel(0xff000000, &de_bld_regs->attr[0].fcolor);
@@ -181,6 +181,8 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 		break;
 	}
 
+	printf("DE2: Configuring UI layer 0: fb=0x%08x size=0x%08x attr=0x%08x\n",
+	       address, size, SUNXI_DE2_UI_CFG_ATTR_EN | format);
 	writel(SUNXI_DE2_UI_CFG_ATTR_EN | format, &de_ui_regs->cfg[0].attr);
 	writel(size, &de_ui_regs->cfg[0].size);
 	writel(0, &de_ui_regs->cfg[0].coord);
@@ -190,6 +192,17 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 
 	/* apply settings */
 	writel(1, &de_glb_regs->dbuff);
+	printf("DE2: UI layer configured, double-buffer applied\n");
+
+	/* Readback to verify pipeline is configured */
+	printf("DE2: Readback - GLB_CTL=0x%08x GLB_SIZE=0x%08x\n",
+	       readl(&de_glb_regs->ctl), readl(&de_glb_regs->size));
+	printf("DE2: Readback - PIPE_CTL=0x%08x ROUTE=0x%08x OUTPUT_SIZE=0x%08x\n",
+	       readl(&de_bld_regs->fcolor_ctl), readl(&de_bld_regs->route),
+	       readl(&de_bld_regs->output_size));
+	printf("DE2: Readback - UI_ATTR=0x%08x UI_SIZE=0x%08x UI_PITCH=0x%08x UI_LADDR=0x%08x\n",
+	       readl(&de_ui_regs->cfg[0].attr), readl(&de_ui_regs->cfg[0].size),
+	       readl(&de_ui_regs->cfg[0].pitch), readl(&de_ui_regs->cfg[0].top_laddr));
 }
 
 static int sunxi_de2_init(struct udevice *dev, ulong fbbase,
@@ -227,6 +240,7 @@ static int sunxi_de2_init(struct udevice *dev, ulong fbbase,
 		printf("DE2: Failed to enable display: %d\n", ret);
 		return ret;
 	}
+	printf("DE2: Display enabled successfully\n");
 
 	uc_priv->xsize = timing.hactive.typ;
 	uc_priv->ysize = timing.vactive.typ;

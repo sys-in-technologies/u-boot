@@ -152,6 +152,15 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 #endif
 	printf("LCD: Enabling LCDC...\n");
 	lcdc_enable(lcdc, priv->panel_bpp);
+	printf("LCD: TCON0 registers after enable:\n");
+	printf("LCD: TCON CTRL=0x%08x TCON0_CTRL=0x%08x TCON0_DCLK=0x%08x\n",
+	       readl(&lcdc->ctrl), readl(&lcdc->tcon0_ctrl), readl(&lcdc->tcon0_dclk));
+	printf("LCD: TCON0 TIMING_ACT=0x%08x TIMING_H=0x%08x TIMING_V=0x%08x\n",
+	       readl(&lcdc->tcon0_timing_active), readl(&lcdc->tcon0_timing_h),
+	       readl(&lcdc->tcon0_timing_v));
+	printf("LCD: TCON0 CPU_INTF=0x%08x IO_POL=0x%08x IO_TRI=0x%08x\n",
+	       readl(&lcdc->tcon0_cpu_intf), readl(&lcdc->tcon0_io_polarity),
+	       readl(&lcdc->tcon0_io_tristate));
 
 	if (IS_ENABLED(CONFIG_VIDEO_SUNXI_MIPI_DSI)) {
 		struct mipi_dsi_device *dsi_dev;

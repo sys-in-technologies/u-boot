@@ -658,9 +658,18 @@ static int sun6i_dsi_dcs_write_short(struct sun6i_dsi_priv *dsi,
 				     const struct mipi_dsi_msg *msg)
 {
 	int ret;
+	u32 pkt = sun6i_dsi_dcs_build_pkt_hdr(dsi, msg);
 
-	writel(sun6i_dsi_dcs_build_pkt_hdr(dsi, msg),
-	       dsi->regs + SUN6I_DSI_CMD_TX_REG(0));
+	printf("DSI_LP: SHORT type=0x%02x len=%zu pkt=0x%08x data=",
+	       msg->type, msg->tx_len, pkt);
+	if (msg->tx_buf && msg->tx_len > 0) {
+		const u8 *data = msg->tx_buf;
+		for (size_t i = 0; i < msg->tx_len && i < 4; i++)
+			printf("%02x ", data[i]);
+	}
+	printf("\n");
+
+	writel(pkt, dsi->regs + SUN6I_DSI_CMD_TX_REG(0));
 	clrsetbits_le32(dsi->regs + SUN6I_DSI_CMD_CTL_REG, 0xff, (4 - 1));
 
 	sun6i_dsi_start(dsi, DSI_START_LPTX);
@@ -683,6 +692,15 @@ static int sun6i_dsi_dcs_write_long(struct sun6i_dsi_priv *dsi,
 	u8 *tx_buf = (u8 *)msg->tx_buf;
 	u16 crc;
 	u8 bounce[256]; /* DCS long packets are usually small */
+
+	printf("DSI_LP: LONG type=0x%02x len=%zu data=", msg->type, msg->tx_len);
+	if (tx_buf && msg->tx_len > 0) {
+		for (size_t i = 0; i < msg->tx_len && i < 16; i++)
+			printf("%02x ", tx_buf[i]);
+		if (msg->tx_len > 16)
+			printf("...");
+	}
+	printf("\n");
 
 	if (msg->tx_len + 2 > sizeof(bounce))
 		return -EINVAL;
@@ -904,15 +922,29 @@ static int sun6i_dsi_enable(struct udevice *dev)
 	udelay(1000);
 	sun6i_dsi_start(dsi, DSI_START_HSD);
 
-	printf("DSI: Video mode started. Register dump:\n");
+	printf("DSI: HSD started. Immediate register dump:\n");
 	printf("DSI: CTL=0x%08x BASIC_CTL=0x%08x BASIC_CTL0=0x%08x BASIC_CTL1=0x%08x\n",
 	       readl(dsi->regs + SUN6I_DSI_CTL_REG),
 	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL_REG),
 	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL0_REG),
 	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL1_REG));
-	printf("DSI: INST_FUNC=0x%08x INST_JUMP_SEL=0x%08x\n",
-	       readl(dsi->regs + SUN6I_DSI_INST_FUNC_REG(DSI_INST_ID_LP11)),
-	       readl(dsi->regs + SUN6I_DSI_INST_JUMP_SEL_REG));
+	printf("DSI: INST_JUMP_SEL=0x%08x INST_JUMP_CFG=0x%08x\n",
+	       readl(dsi->regs + SUN6I_DSI_INST_JUMP_SEL_REG),
+	       readl(dsi->regs + SUN6I_DSI_INST_JUMP_CFG_REG(0)));
+
+	/* Wait 500ms then re-read to check if INST_ST (bit 0) is still set.
+	 * If BASIC_CTL0 bit 0 = 0 after delay, the HSD loop terminated. */
+	mdelay(500);
+	{
+		u32 ctl0 = readl(dsi->regs + SUN6I_DSI_BASIC_CTL0_REG);
+		u32 ctl1 = readl(dsi->regs + SUN6I_DSI_BASIC_CTL1_REG);
+		printf("DSI: After 500ms: BASIC_CTL0=0x%08x BASIC_CTL1=0x%08x\n",
+		       ctl0, ctl1);
+		if (ctl0 & SUN6I_DSI_BASIC_CTL0_INST_ST)
+			printf("DSI: INST_ST=1 -> HSD loop still running (good)\n");
+		else
+			printf("DSI: INST_ST=0 -> HSD loop TERMINATED (pipeline broken!)\n");
+	}
 
 	return 0;
 }
