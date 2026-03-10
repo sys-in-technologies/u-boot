@@ -359,7 +359,7 @@ int sunxi_simplefb_setup(void *blob)
 	u64 start, size;
 	const char *pipeline = NULL;
 
-	debug("Setting up simplefb\n");
+	printf("simplefb: sunxi_simplefb_setup entered\n");
 
 	if (IS_ENABLED(CONFIG_MACH_SUNXI_H3_H5))
 		mux = 0;
@@ -370,10 +370,10 @@ int sunxi_simplefb_setup(void *blob)
 	ret = uclass_get_device_by_driver(UCLASS_VIDEO,
 					  DM_DRIVER_GET(sunxi_de2), &de2);
 	if (ret) {
-		debug("DE2 not present\n");
+		printf("simplefb: DE2 not present (ret=%d)\n", ret);
 		return 0;
 	} else if (!device_active(de2)) {
-		debug("DE2 present but not probed\n");
+		printf("simplefb: DE2 present but not active\n");
 		return 0;
 	}
 
@@ -400,18 +400,22 @@ int sunxi_simplefb_setup(void *blob)
 		debug("LCD present but not probed\n");
 
 	if (!pipeline) {
-		debug("No active display present\n");
+		printf("simplefb: no active display found, skipping\n");
 		return 0;
 	}
+
+	printf("simplefb: pipeline='%s'\n", pipeline);
 
 	de2_priv = dev_get_uclass_priv(de2);
 	de2_plat = dev_get_uclass_plat(de2);
 
 	offset = sunxi_simplefb_fdt_match(blob, pipeline);
 	if (offset < 0) {
-		eprintf("Cannot setup simplefb: node not found\n");
+		printf("simplefb: no DTS stub node found for pipeline '%s' (offset=%d)\n",
+		       pipeline, offset);
 		return 0; /* Keep older kernels working */
 	}
+	printf("simplefb: found DTS stub at offset %d\n", offset);
 
 	start = gd->bd->bi_dram[0].start;
 	size = de2_plat->base - start;

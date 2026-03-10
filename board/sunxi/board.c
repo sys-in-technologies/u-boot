@@ -1049,6 +1049,8 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 {
 	int __maybe_unused r;
 
+	printf("ft_board_setup: entered\n");
+
 	/*
 	 * Call setup_environment and fdt_fixup_ethernet again
 	 * in case the boot fdt has ethernet aliases the u-boot
@@ -1061,9 +1063,13 @@ int ft_board_setup(void *blob, struct bd_info *bd)
 	board_dt_fixup(blob);
 
 #ifdef CONFIG_VIDEO_DT_SIMPLEFB
+	printf("ft_board_setup: calling sunxi_simplefb_setup\n");
 	r = sunxi_simplefb_setup(blob);
+	printf("ft_board_setup: sunxi_simplefb_setup returned %d\n", r);
 	if (r)
 		return r;
+#else
+	printf("ft_board_setup: CONFIG_VIDEO_DT_SIMPLEFB not set\n");
 #endif
 	return 0;
 }

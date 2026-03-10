@@ -660,14 +660,14 @@ static int sun6i_dsi_dcs_write_short(struct sun6i_dsi_priv *dsi,
 	int ret;
 	u32 pkt = sun6i_dsi_dcs_build_pkt_hdr(dsi, msg);
 
-	printf("DSI_LP: SHORT type=0x%02x len=%zu pkt=0x%08x data=",
-	       msg->type, msg->tx_len, pkt);
+	debug("DSI_LP: SHORT type=0x%02x len=%zu pkt=0x%08x data=",
+	      msg->type, msg->tx_len, pkt);
 	if (msg->tx_buf && msg->tx_len > 0) {
 		const u8 *data = msg->tx_buf;
 		for (size_t i = 0; i < msg->tx_len && i < 4; i++)
-			printf("%02x ", data[i]);
+			debug("%02x ", data[i]);
 	}
-	printf("\n");
+	debug("\n");
 
 	writel(pkt, dsi->regs + SUN6I_DSI_CMD_TX_REG(0));
 	clrsetbits_le32(dsi->regs + SUN6I_DSI_CMD_CTL_REG, 0xff, (4 - 1));
@@ -693,14 +693,14 @@ static int sun6i_dsi_dcs_write_long(struct sun6i_dsi_priv *dsi,
 	u16 crc;
 	u8 bounce[256]; /* DCS long packets are usually small */
 
-	printf("DSI_LP: LONG type=0x%02x len=%zu data=", msg->type, msg->tx_len);
+	debug("DSI_LP: LONG type=0x%02x len=%zu data=", msg->type, msg->tx_len);
 	if (tx_buf && msg->tx_len > 0) {
 		for (size_t i = 0; i < msg->tx_len && i < 16; i++)
-			printf("%02x ", tx_buf[i]);
+			debug("%02x ", tx_buf[i]);
 		if (msg->tx_len > 16)
-			printf("...");
+			debug("...");
 	}
-	printf("\n");
+	debug("\n");
 
 	if (msg->tx_len + 2 > sizeof(bounce))
 		return -EINVAL;
@@ -771,7 +771,7 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 	struct sun6i_dsi_priv *dsi = host_to_sun6i_dsi(host);
 	int ret;
 
-	printf("DSI: transfer type=0x%02x len=%zu\n", msg->type, msg->tx_len);
+	debug("DSI: transfer type=0x%02x len=%zu\n", msg->type, msg->tx_len);
 
 	ret = sun6i_dsi_inst_wait_for_completion(dsi);
 	if (ret < 0) {
@@ -808,7 +808,7 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 	}
 
 	if (ret < 0)
-		printf("DSI: transfer failed: %d\n", ret);
+		debug("DSI: transfer failed: %d\n", ret);
 
 	return ret;
 }
