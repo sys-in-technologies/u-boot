@@ -80,9 +80,12 @@ void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
 	setbits_le32(&lcdc->ctrl, SUNXI_LCDC_CTRL_TCON_ENABLE);
 
 #ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
-	setbits_le32(&lcdc->tcon0_cpu_intf, 1 << 16); /* SUN4I_TCON0_CPU_IF_TRI_FIFO_FLUSH */
+	/* Pulse TRI_FIFO_FLUSH (BIT(16)) to flush the trigger FIFO.
+	 * TRI_FIFO_EN (BIT(2)) and TRI_EN (BIT(0)) were already set in
+	 * lcdc_tcon0_mode_set() and must be preserved here. */
+	setbits_le32(&lcdc->tcon0_cpu_intf, BIT(16));
 	udelay(1);
-	clrbits_le32(&lcdc->tcon0_cpu_intf, 1 << 16);
+	clrbits_le32(&lcdc->tcon0_cpu_intf, BIT(16));
 
 	printf("LCDC: TCON enabled. CTRL=0x%08x TCON0_CTRL=0x%08x IO_POL=0x%08x\n",
 	       readl(&lcdc->ctrl), readl(&lcdc->tcon0_ctrl), readl(&lcdc->tcon0_io_polarity));
@@ -153,7 +156,44 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 
 	writel(0, &lcdc->tcon0_hv_intf);
 #ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
-	writel(SUNXI_LCDC_TCON0_CPU_IF_MODE_DSI, &lcdc->tcon0_cpu_intf);
+	/* Set CPU interface to DSI mode and enable trigger FIFO + counter.
+	 * TRI_FIFO_EN (BIT(2)) and TRI_EN (BIT(0)) are required for the TCON
+	 * to automatically output frames — without them no video data flows. */
+	writel(SUNXI_LCDC_TCON0_CPU_IF_MODE_DSI | BIT(2) | BIT(0),
+	       &lcdc->tcon0_cpu_intf);
+
+	/* Configure trigger counter registers for automatic video output.
+	 * These are at fixed offsets not covered by the lcdc struct. */
+	{
+		ulong base = (ulong)lcdc;
+		u32 htotal = mode->hactive.typ + mode->hfront_porch.typ +
+			     mode->hsync_len.typ + mode->hback_porch.typ;
+		u32 vtotal = mode->vactive.typ + mode->vfront_porch.typ +
+			     mode->vsync_len.typ + mode->vback_porch.typ;
+		u32 lanes = 4; /* 4-lane DSI */
+		u32 block_space = htotal * depth / (clk_div * lanes) -
+				  mode->hactive.typ - 40;
+		u32 start_delay = (vtotal - mode->vactive.typ - 10 - 1) *
+				  htotal * 149;
+		/* pixelclock is in Hz; divide by 1000000 for MHz to match
+		 * Linux's crtc_clock/1000 calculation (integer division). */
+		start_delay /= (mode->pixelclock.typ / 1000000);
+		start_delay /= 8;
+
+		printf("TCON: TRI: block_space=%u start_delay=%u htotal=%u vtotal=%u\n",
+		       block_space, start_delay, htotal, vtotal);
+
+		/* TRI0: block size (hdisplay) and block space */
+		writel(((block_space - 1) & 0xfff) << 16 |
+		       ((mode->hactive.typ - 1) & 0xfff),
+		       (void *)(base + 0x160));
+		/* TRI1: block count (vdisplay lines) */
+		writel((mode->vactive.typ - 1) & 0xffff,
+		       (void *)(base + 0x164));
+		/* TRI2: start delay + transfer start threshold */
+		writel(((start_delay & 0xffff) << 16) | 10,
+		       (void *)(base + 0x168));
+	}
 #else
 	writel(0, &lcdc->tcon0_cpu_intf);
 #endif
