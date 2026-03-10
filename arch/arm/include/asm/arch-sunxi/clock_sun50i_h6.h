@@ -22,17 +22,30 @@ struct sunxi_ccm_reg {
 #ifdef CONFIG_SUNXI_GEN_NCAT2
 static inline void clock_set_pll3(unsigned int hz)
 {
-	u32 n = hz / 24000000;
+	/* PLL_VIDEO0 formula: 24 MHz * N / M */
+	/* Register: bits 15:8 = N-1, bit 1 = M-1 */
+	u32 m, n;
+
+	/* Special case for 1596 MHz: use N=133, M=2 */
+	if (hz >= 1590000000 && hz <= 1600000000) {
+		n = 133;
+		m = 2;
+	} else {
+		/* General case: M=1 (no divider) */
+		n = hz / 24000000;
+		m = 1;
+	}
+
 	if (n < 8) n = 8;
-	if (n > 100) n = 100;
-	
+	if (n > 255) n = 255;
+
 	u32 reg = readl((u8 *)SUNXI_CCM_BASE + 0x40);
-	reg &= ~((0xff << 8) | 0x3); /* Clear N (15:8) and M (1:0) */
-	reg |= ((n - 1) << 8);
+	reg &= ~((0xff << 8) | (1 << 1)); /* Clear N (15:8) and M (bit 1) */
+	reg |= ((n - 1) << 8) | ((m - 1) << 1);
 	/* Set EN(27), LOCK_EN(29), LDO_EN(25:24), and OUT_EN(31), plus BIT(30) per Linux probe */
 	reg |= BIT(31) | BIT(30) | BIT(29) | BIT(27) | (3 << 24);
-	
-	printf("CCU: PLL_VIDEO0 setup: %u Hz (n=%u, reg=0x%08x), base=0x%x\n", hz, n, reg, SUNXI_CCM_BASE);
+
+	printf("CCU: PLL_VIDEO0 setup: %u Hz (n=%u, m=%u, reg=0x%08x), base=0x%x\n", hz, n, m, reg, SUNXI_CCM_BASE);
 	writel(reg, (u8 *)SUNXI_CCM_BASE + 0x40);
 	mdelay(5);
 	
@@ -51,8 +64,8 @@ static inline unsigned int clock_get_pll3(void)
 {
 	u32 reg = readl((u8 *)SUNXI_CCM_BASE + 0x40);
 	u32 n = ((reg >> 8) & 0xff) + 1;
-	u32 m = (reg & 0x1) + 1;
-	printf("CCU: PLL_VIDEO0 get: (n=%u, reg=0x%08x)\n", n, reg);
+	u32 m = ((reg >> 1) & 0x1) + 1;
+	printf("CCU: PLL_VIDEO0 get: (n=%u, m=%u, reg=0x%08x)\n", n, m, reg);
 	return (n * 24000000) / m;
 }
 
