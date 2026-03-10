@@ -145,6 +145,21 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	writel(0, de_mux_base + SUNXI_DE2_MUX_GSU3_REGS);
 	writel(0, de_mux_base + SUNXI_DE2_MUX_FCE_REGS);
 	writel(0, de_mux_base + SUNXI_DE2_MUX_BWS_REGS);
+
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/*
+	 * Disable CCSC (channel color-space conversion) for all channels.
+	 * On D1/T113-S the CCSC offsets differ from other Allwinner SoCs:
+	 *   channel 0 (VI): CCSC00 at 0xAA050
+	 *   channel 1 (UI): CCSC01 at 0xFA000
+	 * Linux only enables CCSC for VI layers carrying YUV content; it is
+	 * never touched for UI (RGB) layers.  After a warm reboot where a YUV
+	 * stream was active, CCSC00 may still be enabled.  Clear both to be
+	 * safe and avoid colour distortion on warm reboots.
+	 */
+	writel(0, de_mux_base + 0xAA050); /* CCSC00 – VI channel 0 */
+	writel(0, de_mux_base + 0xFA000); /* CCSC01 – UI channel 1 (D1 layout) */
+#endif
 	writel(0, de_mux_base + SUNXI_DE2_MUX_LTI_REGS);
 	writel(0, de_mux_base + SUNXI_DE2_MUX_PEAK_REGS);
 	writel(0, de_mux_base + SUNXI_DE2_MUX_ASE_REGS);
