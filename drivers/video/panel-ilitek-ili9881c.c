@@ -256,7 +256,7 @@ static const struct ili9881c_instr hd50004c30_init[] = {
 	ILI9881C_COMMAND_INSTR(0xCC, 0x16),
 	ILI9881C_COMMAND_INSTR(0xCD, 0x17),
 	ILI9881C_COMMAND_INSTR(0xCE, 0x4A),
-	ILI9881C_COMMAND_INSTR(0xBF, 0x23), /* Error in linux source? 0xCF maybe? */
+	ILI9881C_COMMAND_INSTR(0xCF, 0x23),
 	ILI9881C_COMMAND_INSTR(0xD0, 0x24),
 	ILI9881C_COMMAND_INSTR(0xD1, 0x4F),
 	ILI9881C_COMMAND_INSTR(0xD2, 0x5F),
@@ -299,30 +299,23 @@ static int ili9881c_enable_backlight(struct udevice *dev)
 	struct mipi_dsi_device *dsi = plat->device;
 	int ret, i;
 
+	printf("Panel: Powering up and resetting...\n");
 	if (priv->power) {
-		printf("Panel: Enabling power-supply...\n");
 		regulator_set_enable(priv->power, true);
 		mdelay(10);
 	}
 
 	if (priv->vcc_dsi) {
-		printf("Panel: Enabling vcc-dsi-supply...\n");
 		regulator_set_enable(priv->vcc_dsi, true);
 		mdelay(10);
 	}
 
-	printf("Panel: Resetting...\n");
-	dm_gpio_set_value(&priv->reset, 1); /* Assert reset (Logical 1 -> Physical Low) */
+	/* Start with reset asserted (Low) */
+	dm_gpio_set_value(&priv->reset, 1);
 	mdelay(20);
-	dm_gpio_set_value(&priv->reset, 0); /* De-assert reset (Logical 0 -> Physical High) */
-	mdelay(20);
-	dm_gpio_set_value(&priv->reset, 1); /* Assert reset again? No, typically Pulse is High-Low-High */
-	/* Standard ILI9881C reset is: High -> Low (min 10us) -> High (min 5ms) */
-	dm_gpio_set_value(&priv->reset, 0); /* Start High */
-	mdelay(10);
-	dm_gpio_set_value(&priv->reset, 1); /* Pull Low */
-	mdelay(20);
-	dm_gpio_set_value(&priv->reset, 0); /* Back to High */
+
+	/* Release reset (High) */
+	dm_gpio_set_value(&priv->reset, 0);
 	mdelay(120);
 
 	printf("Panel: Sending %d init commands...\n", priv->desc->init_length);

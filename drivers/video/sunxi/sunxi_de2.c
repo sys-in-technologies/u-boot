@@ -151,14 +151,25 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	 * Disable CCSC (channel color-space conversion) for all channels.
 	 * On D1/T113-S the CCSC offsets differ from other Allwinner SoCs:
 	 *   channel 0 (VI): CCSC00 at 0xAA050
-	 *   channel 1 (UI): CCSC01 at 0xFA000
+	 *   channel 1 (UI): CCSC01 at 0xFA050
 	 * Linux only enables CCSC for VI layers carrying YUV content; it is
 	 * never touched for UI (RGB) layers.  After a warm reboot where a YUV
 	 * stream was active, CCSC00 may still be enabled.  Clear both to be
 	 * safe and avoid colour distortion on warm reboots.
+	 * Also clear the unit bases (FCC0/FCC1) to ensure the enhancement
+	 * engine is fully disabled.
 	 */
-	writel(0, de_mux_base + 0xAA050); /* CCSC00 – VI channel 0 */
-	writel(0, de_mux_base + 0xFA000); /* CCSC01 – UI channel 1 (D1 layout) */
+	writel(0, de_mux_base + 0xAA000); /* FCC0 – VI channel 0 base */
+	writel(0, de_mux_base + 0xAA050); /* CCSC00 – VI channel 0 csc */
+	writel(0, de_mux_base + 0xFA000); /* FCC1 – UI channel 1 base */
+	writel(0, de_mux_base + 0xFA050); /* CCSC01 – UI channel 1 csc */
+
+	/* Disable other VEP units for Channel 1 */
+	writel(0, de_mux_base + 0xF0000); /* FCE1 */
+	writel(0, de_mux_base + 0xF2000); /* BWS1 */
+	writel(0, de_mux_base + 0xF4000); /* LTI1 */
+	writel(0, de_mux_base + 0xF6000); /* PEAK1 */
+	writel(0, de_mux_base + 0xF8000); /* ASE1 */
 #endif
 	writel(0, de_mux_base + SUNXI_DE2_MUX_LTI_REGS);
 	writel(0, de_mux_base + SUNXI_DE2_MUX_PEAK_REGS);

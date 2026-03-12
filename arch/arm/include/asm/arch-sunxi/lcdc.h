@@ -80,6 +80,7 @@ struct sunxi_lcdc_reg {
 #define SUNXI_LCDC_TCON0_CTRL_ENABLE		(1 << 31)
 #define SUNXI_LCDC_TCON0_DCLK_DIV(n)		((n) << 0)
 #define SUNXI_LCDC_TCON0_DCLK_ENABLE		(0xf << 28)
+#define SUNXI_LCDC_TCON0_HV_IF_CCIR_CSC_DIS	(1 << 19)
 #define SUNXI_LCDC_TCON0_CPU_IF_MODE_DSI	(1 << 28)
 #define SUNXI_LCDC_TCON0_TIMING_H_BP(n)		(((n) - 1) << 0)
 #define SUNXI_LCDC_TCON0_TIMING_H_TOTAL(n)	(((n) - 1) << 16)

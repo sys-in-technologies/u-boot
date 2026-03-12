@@ -154,7 +154,7 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 	writel(SUNXI_LCDC_X(mode->hsync_len.typ) |
 	       SUNXI_LCDC_Y(mode->vsync_len.typ), &lcdc->tcon0_timing_sync);
 
-	writel(0, &lcdc->tcon0_hv_intf);
+	writel(SUNXI_LCDC_TCON0_HV_IF_CCIR_CSC_DIS, &lcdc->tcon0_hv_intf);
 #ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
 	/* Set CPU interface to DSI mode and enable trigger FIFO + counter.
 	 * TRI_FIFO_EN (BIT(2)) and TRI_EN (BIT(0)) are required for the TCON
