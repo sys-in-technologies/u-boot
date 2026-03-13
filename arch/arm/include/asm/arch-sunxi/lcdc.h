@@ -67,6 +67,7 @@ struct sunxi_lcdc_reg {
 #define SUNXI_LCDC_CTRL_IO_MAP_MASK		(1 << 0)
 #define SUNXI_LCDC_CTRL_IO_MAP_TCON0		(0 << 0)
 #define SUNXI_LCDC_CTRL_IO_MAP_TCON1		(1 << 0)
+#define SUNXI_LCDC_GCTL_GAMMA_ENABLE		(1 << 30)
 #define SUNXI_LCDC_CTRL_TCON_ENABLE		(1 << 31)
 #define SUNXI_LCDC_TCON0_FRM_CTRL_RGB666	((1 << 31) | (0 << 4))
 #define SUNXI_LCDC_TCON0_FRM_CTRL_RGB565	((1 << 31) | (5 << 4))

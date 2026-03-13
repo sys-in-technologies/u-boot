@@ -170,6 +170,14 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	writel(0, de_mux_base + 0xF4000); /* LTI1 */
 	writel(0, de_mux_base + 0xF6000); /* PEAK1 */
 	writel(0, de_mux_base + 0xF8000); /* ASE1 */
+
+	/* 
+	 * Disable DCSC (Display Color Space Conversion) and SMBL (Smart Backlight).
+	 * On NCAT2, DCSC enable bit is BIT(1) if SMBL is present. 
+	 * Writing 0 to the base (0xB0000) ensures both BIT(0) and BIT(1) are cleared.
+	 */
+	writel(0, de_mux_base + 0xB0000); /* DCSC base */
+	writel(0, de_mux_base + 0x60000); /* SMBL base */
 #endif
 	writel(0, de_mux_base + SUNXI_DE2_MUX_LTI_REGS);
 	writel(0, de_mux_base + SUNXI_DE2_MUX_PEAK_REGS);

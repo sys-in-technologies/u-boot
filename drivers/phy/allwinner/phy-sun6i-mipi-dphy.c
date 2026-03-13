@@ -220,6 +220,10 @@ static void sun50i_a100_mipi_dphy_tx_power_on(struct sun6i_dphy_priv *priv)
 			 SUN6I_DPHY_ANA0_REG_PLR(4) |
 			 SUN6I_DPHY_ANA0_REG_SFB(1));
 
+	/* Clean start for Combo PHY registers */
+	sun6i_dphy_write(priv, 0x114, 0); /* COMBO_PHY_REG1 */
+	sun6i_dphy_write(priv, 0x118, 0); /* COMBO_PHY_REG2 */
+
 	sun6i_dphy_write(priv, SUN50I_COMBO_PHY_REG0,
 			 SUN50I_COMBO_PHY_REG0_EN_CP);
 
@@ -411,6 +415,15 @@ static int sun6i_dphy_power_on(struct phy *phy)
 	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA1_REG,
 			       SUN6I_DPHY_ANA1_REG_VTTMODE,
 			       SUN6I_DPHY_ANA1_REG_VTTMODE);
+
+#ifdef CONFIG_SUNXI_GEN_NCAT2
+	/*
+	 * T113-S/D1 Quirk: If IC version (bits 0-2 of 0x03000024) is > 0,
+	 * bit 5 of ANA1 must be set.
+	 */
+	if ((readl((u8 *)0x03000024) & 0x7) > 0)
+		sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA1_REG, BIT(5), BIT(5));
+#endif
 
 	sun6i_dphy_update_bits(priv, SUN6I_DPHY_ANA2_REG,
 			       SUN6I_DPHY_ANA2_EN_P2S_CPU_MASK,

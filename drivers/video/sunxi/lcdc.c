@@ -64,7 +64,7 @@ static int lcdc_get_clk_delay(const struct display_timing *mode, int tcon)
 void lcdc_init(struct sunxi_lcdc_reg * const lcdc)
 {
 	/* Init lcdc */
-	writel(0, &lcdc->ctrl); /* Disable tcon */
+	writel(0, &lcdc->ctrl); /* Disable tcon, including gamma */
 	writel(0, &lcdc->int0); /* Disable all interrupts */
 
 	/* Disable tcon0 dot clock */
