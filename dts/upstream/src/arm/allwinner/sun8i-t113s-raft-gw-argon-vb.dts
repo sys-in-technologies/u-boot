@@ -256,6 +256,7 @@
 	#size-cells = <0>;
 	vcc-dsi-supply = <&reg_1v8>;
 
+#if 0
 	panel@0 {
 		compatible = "huadichuangxian,hd50004c30", "ilitek,ili9881c";
 		reg = <0>;
@@ -263,6 +264,17 @@
 		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
 		backlight = <&backlight>;
 	};
+#endif
+
+#if 1
+	panel@0 {
+		compatible = "elitek,ek79007";
+		reg = <0>;
+		power-supply = <&reg_avdd2v8>;
+		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
+		backlight = <&backlight>;
+	};
+#endif
 
 	port {
 		dsi_in_tcon_lcd0: endpoint {

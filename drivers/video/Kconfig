@@ -676,6 +676,13 @@ config VIDEO_LCD_TDO_TL070WSH30
 	Say Y here if you want to enable support for TDO TL070WSH30
 	1024x600 DSI video mode panel.
 
+config VIDEO_LCD_EK79007
+	bool "Elitek EK79007 MIPI DSI LCD panel"
+	depends on PANEL
+	help
+	  Say Y here to add support for the Elitek EK79007 MIPI DSI LCD panel.
+	  The panel is a 1024x600 4-lane MIPI DSI video mode panel.
+
 config VIDEO_LCD_ILI9881C
 	bool "Ilitek ILI9881C MIPI DSI LCD panel"
 	depends on PANEL

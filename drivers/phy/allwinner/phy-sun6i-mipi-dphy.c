@@ -8,6 +8,7 @@
  */
 
 #include <clk.h>
+#include <div64.h>
 #include <dm.h>
 #include <generic-phy.h>
 #include <log.h>
@@ -343,28 +344,40 @@ static int sun6i_dphy_power_on(struct phy *phy)
 {
 	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
 	u8 lanes_mask = GENMASK(priv->config.lanes - 1, 0);
-	unsigned long long ui_ps;
-	u32 hs_prepare, hs_trail, clk_prepare, clk_zero, clk_pre, clk_post, clk_trail, hs_zero;
-	u32 lpx;
+	u64 ui_ps, hs_trail_ps, clk_pre_ps;
+	u32 hs_prepare, hs_trail, clk_prepare, clk_zero, clk_pre, clk_post, clk_trail;
 
-	printf("DPHY: Powering on (priv=%p, %d lanes)...\n", priv, priv->config.lanes);
+	/*
+	 * The DPHY mod clock is fixed at 150 MHz → period = 6667 ps/cycle.
+	 * TX timing registers count in units of mod_clk cycles.
+	 *
+	 * Timing values in priv->config come from phy_mipi_dphy_get_default_config
+	 * in picoseconds. Convert: reg = DIV_ROUND_UP(time_ps, 6667).
+	 *
+	 * Two exceptions computed directly from UI:
+	 *  - hs_trail: the framework uses n=4 (reverse-direction HS); TX uses n=1.
+	 *  - clk_pre:  the framework minimum (8000 ps) is below 8×UI for low bit rates.
+	 */
+#define DPHY_MOD_CLK_PS  6667ULL  /* 1 / 150 MHz in picoseconds */
 
 	ui_ps = 1000000000000ULL / priv->config.hs_clk_rate;
-	lpx = 50000 / 2000; /* LPX min 50ns, using a conservative divisor */
 
-	/* Calculations derived from Linux/BSP logic */
-	hs_prepare = (40000 + 4 * ui_ps) / 2000;
-	hs_trail = max(8 * ui_ps, 60000 + 4 * ui_ps) / 2000;
-	hs_zero = (105000 + 6 * ui_ps) / 2000 - hs_prepare;
+	/* hs_trail (n=1 TX forward): max(8×UI, 60 ns + 4×UI) */
+	hs_trail_ps = max_t(u64, 8 * ui_ps, 60000ULL + 4 * ui_ps);
+	/* clk_pre: at least 8×UI per spec (framework floor is 8000 ps) */
+	clk_pre_ps  = max_t(u64, (u64)priv->config.clk_pre, 8 * ui_ps);
 
-	clk_prepare = 38000 / 2000;
-	clk_zero = (300000 - 38000) / 2000;
-	clk_pre = 8;
-	clk_post = (60000 + 52 * ui_ps) / 2000;
-	clk_trail = 60000 / 2000;
+	hs_prepare  = DIV_ROUND_UP(priv->config.hs_prepare,  DPHY_MOD_CLK_PS);
+	hs_trail    = DIV_ROUND_UP_ULL(hs_trail_ps,           DPHY_MOD_CLK_PS);
+	clk_prepare = DIV_ROUND_UP(priv->config.clk_prepare, DPHY_MOD_CLK_PS);
+	clk_zero    = DIV_ROUND_UP(priv->config.clk_zero,    DPHY_MOD_CLK_PS);
+	clk_pre     = DIV_ROUND_UP_ULL(clk_pre_ps,            DPHY_MOD_CLK_PS);
+	clk_post    = DIV_ROUND_UP(priv->config.clk_post,    DPHY_MOD_CLK_PS);
+	clk_trail   = DIV_ROUND_UP(priv->config.clk_trail,   DPHY_MOD_CLK_PS);
 
-	printf("DPHY: Timings: hs_prep=%d, hs_trail=%d, clk_prep=%d, clk_zero=%d\n", 
-		hs_prepare, hs_trail, clk_prepare, clk_zero);
+	printf("DPHY: Powering on (priv=%p, %d lanes)...\n", priv, priv->config.lanes);
+	printf("DPHY: Timings (mod_clk cycles): hs_prep=%u trail=%u clk_prep=%u zero=%u pre=%u post=%u trail=%u\n",
+	       hs_prepare, hs_trail, clk_prepare, clk_zero, clk_pre, clk_post, clk_trail);
 
 	sun6i_dphy_write(priv, SUN6I_DPHY_TX_CTL_REG,
 			 SUN6I_DPHY_TX_CTL_HS_TX_CLK_CONT);
