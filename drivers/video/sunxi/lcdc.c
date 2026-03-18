@@ -36,13 +36,13 @@ void sunxi_tcon_top_setup(int mixer, int tcon)
 
 	/* Enable clock gates in TCON TOP */
 	val = readl(tcon_top + TCON_TOP_GATE_SRC_REG);
-	printf("TCON_TOP: GATE_SRC before=0x%08x\n", val);
+	log_debug("TCON_TOP: GATE_SRC before=0x%08x\n", val);
 	if (tcon == 0)
 		val |= BIT(16); /* TCON_TOP_TCON_DSI_GATE */
 	else
 		val |= BIT(20); /* TCON_TOP_TCON_TV0_GATE */
 	writel(val, tcon_top + TCON_TOP_GATE_SRC_REG);
-	printf("TCON_TOP: GATE_SRC after=0x%08x PORT_SEL=0x%08x\n",
+	log_debug("TCON_TOP: GATE_SRC after=0x%08x PORT_SEL=0x%08x\n",
 	       readl(tcon_top + TCON_TOP_GATE_SRC_REG),
 	       readl(tcon_top + TCON_TOP_PORT_SEL_REG));
 }
@@ -87,7 +87,7 @@ void lcdc_enable(struct sunxi_lcdc_reg * const lcdc, int depth)
 	udelay(1);
 	clrbits_le32(&lcdc->tcon0_cpu_intf, BIT(16));
 
-	printf("LCDC: TCON enabled. CTRL=0x%08x TCON0_CTRL=0x%08x IO_POL=0x%08x\n",
+	log_debug("LCDC: TCON enabled. CTRL=0x%08x TCON0_CTRL=0x%08x IO_POL=0x%08x\n",
 	       readl(&lcdc->ctrl), readl(&lcdc->tcon0_ctrl), readl(&lcdc->tcon0_io_polarity));
 #endif
 #ifdef CONFIG_VIDEO_LCD_IF_LVDS
@@ -180,7 +180,7 @@ void lcdc_tcon0_mode_set(struct sunxi_lcdc_reg * const lcdc,
 		start_delay /= (mode->pixelclock.typ / 1000000);
 		start_delay /= 8;
 
-		printf("TCON: TRI: block_space=%u start_delay=%u htotal=%u vtotal=%u\n",
+		log_debug("TCON: TRI: block_space=%u start_delay=%u htotal=%u vtotal=%u\n",
 		       block_space, start_delay, htotal, vtotal);
 
 		/* TRI0: block size (hdisplay) and block space */

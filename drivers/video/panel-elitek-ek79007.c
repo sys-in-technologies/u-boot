@@ -55,12 +55,12 @@ static int ek79007_enable_backlight(struct udevice *dev)
 	struct mipi_dsi_device *dsi = plat->device;
 	int ret, i;
 
-	printf("Panel ek79007: powering up...\n");
+	log_debug("Panel ek79007: powering up...\n");
 
 	if (priv->power) {
 		ret = regulator_set_enable(priv->power, true);
 		if (ret < 0) {
-			printf("Panel ek79007: failed to enable power: %d\n", ret);
+			log_debug("Panel ek79007: failed to enable power: %d\n", ret);
 			return ret;
 		}
 		mdelay(15);
@@ -74,17 +74,17 @@ static int ek79007_enable_backlight(struct udevice *dev)
 	//dm_gpio_set_value(&priv->reset, 1);
 	//mdelay(120);
 
-	printf("Panel ek79007: sending init commands...\n");
+	log_debug("Panel ek79007: sending init commands...\n");
 
 	ret = mipi_dsi_dcs_set_tear_off(dsi);
 	if (ret < 0)
-		printf("Panel ek79007: set_tear_off failed: %d\n", ret);
+		log_debug("Panel ek79007: set_tear_off failed: %d\n", ret);
 
 	for (i = 0; i < ARRAY_SIZE(ek79007_init_cmds); i++) {
 		ret = mipi_dsi_dcs_write(dsi, ek79007_init_cmds[i][0],
 					 &ek79007_init_cmds[i][1], 1);
 		if (ret < 0) {
-			printf("Panel ek79007: init cmd 0x%02x failed: %d\n",
+			log_debug("Panel ek79007: init cmd 0x%02x failed: %d\n",
 			       ek79007_init_cmds[i][0], ret);
 			return ret;
 		}
@@ -92,19 +92,19 @@ static int ek79007_enable_backlight(struct udevice *dev)
 
 	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
 	if (ret < 0) {
-		printf("Panel ek79007: exit sleep mode failed: %d\n", ret);
+		log_debug("Panel ek79007: exit sleep mode failed: %d\n", ret);
 		return ret;
 	}
 	mdelay(120);
 
 	ret = mipi_dsi_dcs_set_display_on(dsi);
 	if (ret < 0) {
-		printf("Panel ek79007: set display on failed: %d\n", ret);
+		log_debug("Panel ek79007: set display on failed: %d\n", ret);
 		return ret;
 	}
 	mdelay(20);
 
-	printf("Panel ek79007: init complete.\n");
+	log_debug("Panel ek79007: init complete.\n");
 	return 0;
 }
 
@@ -122,18 +122,18 @@ static int ek79007_probe(struct udevice *dev)
 	static struct mipi_dsi_device dsi_dev;
 	int ret;
 
-	printf("Panel ek79007: probing %s...\n", dev->name);
+	log_debug("Panel ek79007: probing %s...\n", dev->name);
 
 	ret = gpio_request_by_name(dev, "reset-gpios", 0, &priv->reset,
 				   GPIOD_IS_OUT);
 	if (ret) {
-		printf("Panel ek79007: failed to request reset-gpios: %d\n", ret);
+		log_debug("Panel ek79007: failed to request reset-gpios: %d\n", ret);
 		return ret;
 	}
 
 	ret = device_get_supply_regulator(dev, "power-supply", &priv->power);
 	if (ret && ret != -ENOENT) {
-		printf("Panel ek79007: failed to get power-supply: %d\n", ret);
+		log_debug("Panel ek79007: failed to get power-supply: %d\n", ret);
 		return ret;
 	}
 
@@ -149,7 +149,7 @@ static int ek79007_probe(struct udevice *dev)
 	dsi_dev.mode_flags = plat->mode_flags;
 	plat->device = &dsi_dev;
 
-	printf("Panel ek79007: probe successful (lanes=%d).\n", plat->lanes);
+	log_debug("Panel ek79007: probe successful (lanes=%d).\n", plat->lanes);
 	return 0;
 }
 

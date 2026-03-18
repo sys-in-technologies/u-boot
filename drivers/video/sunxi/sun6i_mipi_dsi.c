@@ -311,7 +311,7 @@ static int sun6i_dsi_inst_wait_for_completion(struct sun6i_dsi_priv *dsi)
 				  val, !(val & SUN6I_DSI_BASIC_CTL0_INST_ST),
 				  100000);
 	if (ret)
-		printf("DSI: Instruction completion timeout! (CTL0: 0x%08x)\n", val);
+		log_debug("DSI: Instruction completion timeout! (CTL0: 0x%08x)\n", val);
 	return ret;
 }
 
@@ -660,14 +660,8 @@ static int sun6i_dsi_dcs_write_short(struct sun6i_dsi_priv *dsi,
 	int ret;
 	u32 pkt = sun6i_dsi_dcs_build_pkt_hdr(dsi, msg);
 
-	printf("DSI_LP: SHORT type=0x%02x len=%zu pkt=0x%08x data=",
-	       msg->type, msg->tx_len, pkt);
-	if (msg->tx_buf && msg->tx_len > 0) {
-		const u8 *data = msg->tx_buf;
-		for (size_t i = 0; i < msg->tx_len && i < 4; i++)
-			printf("%02x ", data[i]);
-	}
-	printf("\n");
+	log_debug("DSI_LP: SHORT type=0x%02x len=%zu pkt=0x%08x\n",
+		  msg->type, msg->tx_len, pkt);
 
 	writel(pkt, dsi->regs + SUN6I_DSI_CMD_TX_REG(0));
 	clrsetbits_le32(dsi->regs + SUN6I_DSI_CMD_CTL_REG, 0xff, (4 - 1));
@@ -676,7 +670,7 @@ static int sun6i_dsi_dcs_write_short(struct sun6i_dsi_priv *dsi,
 
 	ret = sun6i_dsi_inst_wait_for_completion(dsi);
 	if (ret < 0) {
-		printf("DSI: write_short: wait for completion failed: %d\n", ret);
+		log_debug("DSI: write_short: wait for completion failed: %d\n", ret);
 		sun6i_dsi_inst_abort(dsi);
 		return ret;
 	}
@@ -693,14 +687,7 @@ static int sun6i_dsi_dcs_write_long(struct sun6i_dsi_priv *dsi,
 	u16 crc;
 	u8 bounce[256]; /* DCS long packets are usually small */
 
-	printf("DSI_LP: LONG type=0x%02x len=%zu data=", msg->type, msg->tx_len);
-	if (tx_buf && msg->tx_len > 0) {
-		for (size_t i = 0; i < msg->tx_len && i < 16; i++)
-			printf("%02x ", tx_buf[i]);
-		if (msg->tx_len > 16)
-			printf("...");
-	}
-	printf("\n");
+	log_debug("DSI_LP: LONG type=0x%02x len=%zu\n", msg->type, msg->tx_len);
 
 	if (msg->tx_len + 2 > sizeof(bounce))
 		return -EINVAL;
@@ -775,7 +762,7 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 
 	ret = sun6i_dsi_inst_wait_for_completion(dsi);
 	if (ret < 0) {
-		printf("DSI: transfer: wait for completion failed: %d\n", ret);
+		log_debug("DSI: transfer: wait for completion failed: %d\n", ret);
 		sun6i_dsi_inst_abort(dsi);
 	}
 
@@ -803,7 +790,7 @@ static ssize_t sun6i_dsi_transfer(struct mipi_dsi_host *host,
 		/* Fall through */
 
 	default:
-		printf("DSI: transfer: unsupported message type 0x%02x\n", msg->type);
+		log_debug("DSI: transfer: unsupported message type 0x%02x\n", msg->type);
 		ret = -EINVAL;
 	}
 
@@ -846,7 +833,7 @@ static int sun6i_dsi_init(struct udevice *dev,
 	struct sun6i_dsi_priv *dsi = dev_get_priv(dev);
 	u16 delay;
 
-	printf("DSI: init starting\n");
+	log_debug("DSI: init starting\n");
 	dsi->device = device;
 	memcpy(&dsi->timing, timings, sizeof(struct display_timing));
 	dsi->host.dev = (struct device *)dev;
@@ -854,12 +841,12 @@ static int sun6i_dsi_init(struct udevice *dev,
 	device->host = &dsi->host;
 
 	if (dsi->vcc_dsi) {
-		printf("DSI: Enabling vcc-dsi-supply...\n");
+		log_debug("DSI: Enabling vcc-dsi-supply...\n");
 		regulator_set_enable(dsi->vcc_dsi, true);
 		mdelay(10);
 	}
 
-	printf("DSI: enabling block...\n");
+	log_debug("DSI: enabling block...\n");
 	writel(SUN6I_DSI_CTL_EN, dsi->regs + SUN6I_DSI_CTL_REG);
 
 	writel(SUN6I_DSI_BASIC_CTL0_ECC_EN | SUN6I_DSI_BASIC_CTL0_CRC_EN,
@@ -868,7 +855,7 @@ static int sun6i_dsi_init(struct udevice *dev,
 	writel(10, dsi->regs + SUN6I_DSI_TRANS_START_REG);
 	writel(0, dsi->regs + SUN6I_DSI_TRANS_ZERO_REG);
 
-	printf("DSI: inst_init...\n");
+	log_debug("DSI: inst_init...\n");
 	sun6i_dsi_inst_init(dsi, device);
 
 	writel(0xff, dsi->regs + SUN6I_DSI_DEBUG_DATA_REG);
@@ -880,13 +867,13 @@ static int sun6i_dsi_init(struct udevice *dev,
 	       SUN6I_DSI_BASIC_CTL1_VIDEO_MODE,
 	       dsi->regs + SUN6I_DSI_BASIC_CTL1_REG);
 
-	printf("DSI: setup_burst...\n");
+	log_debug("DSI: setup_burst...\n");
 	sun6i_dsi_setup_burst(dsi, timings);
-	printf("DSI: setup_inst_loop...\n");
+	log_debug("DSI: setup_inst_loop...\n");
 	sun6i_dsi_setup_inst_loop(dsi, timings);
-	printf("DSI: setup_format...\n");
+	log_debug("DSI: setup_format...\n");
 	sun6i_dsi_setup_format(dsi, timings);
-	printf("DSI: setup_timings...\n");
+	log_debug("DSI: setup_timings...\n");
 	sun6i_dsi_setup_timings(dsi, timings);
 
 	/* PHY initialization */
@@ -897,19 +884,19 @@ static int sun6i_dsi_init(struct udevice *dev,
 					       mipi_dsi_pixel_format_to_bpp(device->format),
 					       device->lanes, &cfg);
 	if (ret) {
-		printf("DSI: Failed to get default DPHY config: %d\n", ret);
+		log_debug("DSI: Failed to get default DPHY config: %d\n", ret);
 		return ret;
 	}
 
-	printf("DSI: Configuring DPHY with %d lanes, bitrate %lu Hz\n", cfg.lanes, cfg.hs_clk_rate);
+	log_debug("DSI: Configuring DPHY with %d lanes, bitrate %lu Hz\n", cfg.lanes, cfg.hs_clk_rate);
 	generic_phy_init(&dsi->dphy);
 	generic_phy_set_mode(&dsi->dphy, PHY_MODE_MIPI_DPHY, 0);
 	ret = generic_phy_configure(&dsi->dphy, &cfg);
 	if (ret)
-		printf("DSI: generic_phy_configure failed: %d\n", ret);
+		log_debug("DSI: generic_phy_configure failed: %d\n", ret);
 	generic_phy_power_on(&dsi->dphy);
 
-	printf("DSI: init done\n");
+	log_debug("DSI: init done\n");
 	return 0;
 }
 
@@ -917,18 +904,18 @@ static int sun6i_dsi_enable(struct udevice *dev)
 {
 	struct sun6i_dsi_priv *dsi = dev_get_priv(dev);
 
-	printf("DSI: enable starting (starting HSC then HSD)...\n");
+	log_debug("DSI: enable starting (starting HSC then HSD)...\n");
 	sun6i_dsi_start(dsi, DSI_START_HSC);
 	udelay(1000);
 	sun6i_dsi_start(dsi, DSI_START_HSD);
 
-	printf("DSI: HSD started. Immediate register dump:\n");
-	printf("DSI: CTL=0x%08x BASIC_CTL=0x%08x BASIC_CTL0=0x%08x BASIC_CTL1=0x%08x\n",
+	log_debug("DSI: HSD started. Immediate register dump:\n");
+	log_debug("DSI: CTL=0x%08x BASIC_CTL=0x%08x BASIC_CTL0=0x%08x BASIC_CTL1=0x%08x\n",
 	       readl(dsi->regs + SUN6I_DSI_CTL_REG),
 	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL_REG),
 	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL0_REG),
 	       readl(dsi->regs + SUN6I_DSI_BASIC_CTL1_REG));
-	printf("DSI: INST_JUMP_SEL=0x%08x INST_JUMP_CFG=0x%08x\n",
+	log_debug("DSI: INST_JUMP_SEL=0x%08x INST_JUMP_CFG=0x%08x\n",
 	       readl(dsi->regs + SUN6I_DSI_INST_JUMP_SEL_REG),
 	       readl(dsi->regs + SUN6I_DSI_INST_JUMP_CFG_REG(0)));
 
@@ -938,12 +925,12 @@ static int sun6i_dsi_enable(struct udevice *dev)
 	{
 		u32 ctl0 = readl(dsi->regs + SUN6I_DSI_BASIC_CTL0_REG);
 		u32 ctl1 = readl(dsi->regs + SUN6I_DSI_BASIC_CTL1_REG);
-		printf("DSI: After 500ms: BASIC_CTL0=0x%08x BASIC_CTL1=0x%08x\n",
+		log_debug("DSI: After 500ms: BASIC_CTL0=0x%08x BASIC_CTL1=0x%08x\n",
 		       ctl0, ctl1);
 		if (ctl0 & SUN6I_DSI_BASIC_CTL0_INST_ST)
-			printf("DSI: INST_ST=1 -> HSD loop still running (good)\n");
+			log_debug("DSI: INST_ST=1 -> HSD loop still running (good)\n");
 		else
-			printf("DSI: INST_ST=0 -> HSD loop TERMINATED (pipeline broken!)\n");
+			log_debug("DSI: INST_ST=0 -> HSD loop TERMINATED (pipeline broken!)\n");
 	}
 
 	return 0;
@@ -959,13 +946,13 @@ static int sun6i_dsi_probe(struct udevice *dev)
 	struct sun6i_dsi_priv *dsi = dev_get_priv(dev);
 	int ret;
 
-	printf("DSI: Probing %s...\n", dev->name);
+	log_debug("DSI: Probing %s...\n", dev->name);
 
 	dsi->variant = (const struct sun6i_dsi_variant *)dev_get_driver_data(dev);
 
 	dsi->regs = dev_read_addr_ptr(dev);
 	if (!dsi->regs) {
-		printf("DSI: Failed to get register address\n");
+		log_debug("DSI: Failed to get register address\n");
 		return -EINVAL;
 	}
 
@@ -991,7 +978,7 @@ static int sun6i_dsi_probe(struct udevice *dev)
 
 #ifdef CONFIG_SUNXI_GEN_NCAT2
 	/* T113-S/D1: DSI BUS gate/reset at 0xb4c */
-	printf("DSI: Enabling bus gate/reset (NCAT2)...\n");
+	log_debug("DSI: Enabling bus gate/reset (NCAT2)...\n");
 	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb4c, BIT(16) | BIT(0));
 #endif
 
@@ -1001,7 +988,7 @@ static int sun6i_dsi_probe(struct udevice *dev)
 		ret = clk_get_by_index(dev, 0, &dsi->bus_clk);
 
 	if (ret) {
-		printf("DSI: Failed to get bus clock: %d\n", ret);
+		log_debug("DSI: Failed to get bus clock: %d\n", ret);
 		/* Don't return error yet for NCAT2 as we handle it above */
 #ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
@@ -1010,7 +997,7 @@ static int sun6i_dsi_probe(struct udevice *dev)
 
 	ret = clk_enable(&dsi->bus_clk);
 	if (ret) {
-		printf("DSI: Failed to enable bus clock: %d\n", ret);
+		log_debug("DSI: Failed to enable bus clock: %d\n", ret);
 #ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
 #endif
@@ -1018,23 +1005,23 @@ static int sun6i_dsi_probe(struct udevice *dev)
 
 	ret = reset_get_by_index(dev, 0, &dsi->reset);
 	if (!ret) {
-		printf("DSI: De-asserting reset...\n");
+		log_debug("DSI: De-asserting reset...\n");
 		reset_deassert(&dsi->reset);
 	}
 
 	ret = generic_phy_get_by_name(dev, "dphy", &dsi->dphy);
 	if (ret) {
-		printf("DSI: Failed to get dphy: %d\n", ret);
+		log_debug("DSI: Failed to get dphy: %d\n", ret);
 		return ret;
 	}
 
 	ret = device_get_supply_regulator(dev, "vcc-dsi-supply", &dsi->vcc_dsi);
 	if (ret && ret != -ENOENT) {
-		printf("DSI: Failed to get vcc-dsi-supply: %d\n", ret);
+		log_debug("DSI: Failed to get vcc-dsi-supply: %d\n", ret);
 		return ret;
 	}
 
-	printf("DSI: Probe successful.\n");
+	log_debug("DSI: Probe successful.\n");
 	return 0;
 }
 

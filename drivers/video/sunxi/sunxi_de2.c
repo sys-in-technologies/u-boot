@@ -49,10 +49,10 @@ static void sunxi_de2_composer_init(void)
 #ifdef CONFIG_SUNXI_GEN_NCAT2
 	/* T113-S/D1 clocks are handled via absolute offsets or DM CLK */
 	/* DE mod clock at 0x600 */
-	printf("DE2: Enabling DE mod clock...\n");
+	log_debug("DE2: Enabling DE mod clock...\n");
 	writel(BIT(31) | 1, (u8 *)SUNXI_CCM_BASE + 0x600); /* Gate on, PLL_VIDEO(1X) */
 	/* BUS_DE gate/reset at 0x60c */
-	printf("DE2: Enabling BUS_DE gate/reset...\n");
+	log_debug("DE2: Enabling BUS_DE gate/reset...\n");
 	setbits_le32((u8 *)SUNXI_CCM_BASE + 0x60c, BIT(16) | BIT(0));
 #else
 	clock_set_pll10(432000000);
@@ -94,7 +94,7 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	int channel;
 	u32 format;
 
-	printf("DE2: mode_set start (mux=%d, res=%dx%d)\n", mux, mode->hactive.typ, mode->vactive.typ);
+	log_debug("DE2: mode_set start (mux=%d, res=%dx%d)\n", mux, mode->hactive.typ, mode->vactive.typ);
 
 	/* enable clock */
 #ifdef CONFIG_MACH_SUN8I_H3
@@ -107,13 +107,13 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 
 	clrbits_le32(&de_clk_regs->sel_cfg, 1);
 
-	printf("DE2: global registers access...\n");
+	log_debug("DE2: global registers access...\n");
 	writel(SUNXI_DE2_MUX_GLB_CTL_EN, &de_glb_regs->ctl);
-	printf("DE2: GLB_CTL_EN written (enable bit=0x%08x)\n", SUNXI_DE2_MUX_GLB_CTL_EN);
+	log_debug("DE2: GLB_CTL_EN written (enable bit=0x%08x)\n", SUNXI_DE2_MUX_GLB_CTL_EN);
 	writel(0, &de_glb_regs->status);
 	writel(1, &de_glb_regs->dbuff);
 	writel(size, &de_glb_regs->size);
-	printf("DE2: Global config: size=0x%08x dbuff=1\n", size);
+	log_debug("DE2: Global config: size=0x%08x dbuff=1\n", size);
 
 	for (channel = 0; channel < 4; channel++) {
 		void *ch = (void *)(de_mux_base + SUNXI_DE2_MUX_CHAN_REGS +
@@ -131,7 +131,7 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 	writel(size, &de_bld_regs->output_size);
 	writel(mode->flags & DISPLAY_FLAGS_INTERLACED ? 2 : 0,
 	       &de_bld_regs->out_ctl);
-	printf("DE2: Blender config: pipe_ctl=0x%08x route=0x%08x bld_mode[0]=0x%08x\n",
+	log_debug("DE2: Blender config: pipe_ctl=0x%08lx route=0x%08x bld_mode[0]=0x%08x\n",
 	       BIT(8), 1, 0x03010301);
 	writel(0, &de_bld_regs->ck_ctl);
 
@@ -215,7 +215,7 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 		break;
 	}
 
-	printf("DE2: Configuring UI layer 0: fb=0x%08x size=0x%08x attr=0x%08x\n",
+	log_debug("DE2: Configuring UI layer 0: fb=0x%08lx size=0x%08x attr=0x%08x\n",
 	       address, size, SUNXI_DE2_UI_CFG_ATTR_EN | format);
 	writel(SUNXI_DE2_UI_CFG_ATTR_EN | format, &de_ui_regs->cfg[0].attr);
 	writel(size, &de_ui_regs->cfg[0].size);
@@ -226,15 +226,15 @@ static void sunxi_de2_mode_set(int mux, const struct display_timing *mode,
 
 	/* apply settings */
 	writel(1, &de_glb_regs->dbuff);
-	printf("DE2: UI layer configured, double-buffer applied\n");
+	log_debug("DE2: UI layer configured, double-buffer applied\n");
 
 	/* Readback to verify pipeline is configured */
-	printf("DE2: Readback - GLB_CTL=0x%08x GLB_SIZE=0x%08x\n",
+	log_debug("DE2: Readback - GLB_CTL=0x%08x GLB_SIZE=0x%08x\n",
 	       readl(&de_glb_regs->ctl), readl(&de_glb_regs->size));
-	printf("DE2: Readback - PIPE_CTL=0x%08x ROUTE=0x%08x OUTPUT_SIZE=0x%08x\n",
+	log_debug("DE2: Readback - PIPE_CTL=0x%08x ROUTE=0x%08x OUTPUT_SIZE=0x%08x\n",
 	       readl(&de_bld_regs->fcolor_ctl), readl(&de_bld_regs->route),
 	       readl(&de_bld_regs->output_size));
-	printf("DE2: Readback - UI_ATTR=0x%08x UI_SIZE=0x%08x UI_PITCH=0x%08x UI_LADDR=0x%08x\n",
+	log_debug("DE2: Readback - UI_ATTR=0x%08x UI_SIZE=0x%08x UI_PITCH=0x%08x UI_LADDR=0x%08x\n",
 	       readl(&de_ui_regs->cfg[0].attr), readl(&de_ui_regs->cfg[0].size),
 	       readl(&de_ui_regs->cfg[0].pitch), readl(&de_ui_regs->cfg[0].top_laddr));
 }
@@ -248,7 +248,7 @@ static int sunxi_de2_init(struct udevice *dev, ulong fbbase,
 	struct display_plat *disp_uc_plat;
 	int ret;
 
-	printf("DE2: sunxi_de2_init starting\n");
+	log_debug("DE2: sunxi_de2_init starting\n");
 	disp_uc_plat = dev_get_uclass_plat(disp);
 	debug("Using device '%s', disp_uc_priv=%p\n", disp->name, disp_uc_plat);
 	if (display_in_use(disp)) {
@@ -258,28 +258,28 @@ static int sunxi_de2_init(struct udevice *dev, ulong fbbase,
 
 	disp_uc_plat->source_id = mux;
 
-	printf("DE2: Reading display timing...\n");
+	log_debug("DE2: Reading display timing...\n");
 	ret = display_read_timing(disp, &timing);
 	if (ret) {
-		printf("DE2: Failed to read timings: %d\n", ret);
+		log_debug("DE2: Failed to read timings: %d\n", ret);
 		return ret;
 	}
 
 	sunxi_de2_composer_init();
 	sunxi_de2_mode_set(mux, &timing, 1 << l2bpp, fbbase, is_composite);
 
-	printf("DE2: Enabling display (triggering TCON/DSI/Panel)...\n");
+	log_debug("DE2: Enabling display (triggering TCON/DSI/Panel)...\n");
 	ret = display_enable(disp, 1 << l2bpp, &timing);
 	if (ret) {
-		printf("DE2: Failed to enable display: %d\n", ret);
+		log_debug("DE2: Failed to enable display: %d\n", ret);
 		return ret;
 	}
-	printf("DE2: Display enabled successfully\n");
+	log_debug("DE2: Display enabled successfully\n");
 
 	uc_priv->xsize = timing.hactive.typ;
 	uc_priv->ysize = timing.vactive.typ;
 	uc_priv->bpix = l2bpp;
-	printf("DE2: fb=%lx, size=%d %d\n", fbbase, uc_priv->xsize, uc_priv->ysize);
+	log_debug("DE2: fb=%lx, size=%d %d\n", fbbase, uc_priv->xsize, uc_priv->ysize);
 
 #ifdef CONFIG_EFI_LOADER
 	efi_add_memory_map(fbbase,
@@ -297,11 +297,11 @@ static int sunxi_de2_probe(struct udevice *dev)
 	struct udevice *disp;
 	int ret;
 
-	printf("DE2: Probing %s...\n", dev->name);
+	log_debug("DE2: Probing %s...\n", dev->name);
 
 	/* Before relocation we don't need to do anything */
 	if (!(gd->flags & GD_FLG_RELOC)) {
-		printf("DE2: Pre-reloc, skipping.\n");
+		log_debug("DE2: Pre-reloc, skipping.\n");
 		return 0;
 	}
 
@@ -312,17 +312,17 @@ static int sunxi_de2_probe(struct udevice *dev)
 
 		mux = 0;
 
-		printf("DE2: Found LCD display, initializing...\n");
+		log_debug("DE2: Found LCD display, initializing...\n");
 		ret = sunxi_de2_init(dev, plat->base, VIDEO_BPP32, disp, mux,
 				     false);
 		if (!ret) {
-			printf("DE2: Initialization successful.\n");
+			log_debug("DE2: Initialization successful.\n");
 			video_set_flush_dcache(dev, 1);
 			return 0;
 		}
-		printf("DE2: sunxi_de2_init failed: %d\n", ret);
+		log_debug("DE2: sunxi_de2_init failed: %d\n", ret);
 	} else {
-		printf("DE2: sunxi_lcd driver not found or probe failed: %d\n", ret);
+		log_debug("DE2: sunxi_lcd driver not found or probe failed: %d\n", ret);
 	}
 
 	debug("%s: lcd display not found (ret=%d)\n", __func__, ret);
@@ -393,7 +393,7 @@ int sunxi_simplefb_setup(void *blob)
 	u64 start, size;
 	const char *pipeline = NULL;
 
-	printf("simplefb: sunxi_simplefb_setup entered\n");
+	log_debug("simplefb: sunxi_simplefb_setup entered\n");
 
 	if (IS_ENABLED(CONFIG_MACH_SUNXI_H3_H5))
 		mux = 0;
@@ -404,10 +404,10 @@ int sunxi_simplefb_setup(void *blob)
 	ret = uclass_get_device_by_driver(UCLASS_VIDEO,
 					  DM_DRIVER_GET(sunxi_de2), &de2);
 	if (ret) {
-		printf("simplefb: DE2 not present (ret=%d)\n", ret);
+		log_debug("simplefb: DE2 not present (ret=%d)\n", ret);
 		return 0;
 	} else if (!device_active(de2)) {
-		printf("simplefb: DE2 present but not active\n");
+		log_debug("simplefb: DE2 present but not active\n");
 		return 0;
 	}
 
@@ -434,22 +434,22 @@ int sunxi_simplefb_setup(void *blob)
 		debug("LCD present but not probed\n");
 
 	if (!pipeline) {
-		printf("simplefb: no active display found, skipping\n");
+		log_debug("simplefb: no active display found, skipping\n");
 		return 0;
 	}
 
-	printf("simplefb: pipeline='%s'\n", pipeline);
+	log_debug("simplefb: pipeline='%s'\n", pipeline);
 
 	de2_priv = dev_get_uclass_priv(de2);
 	de2_plat = dev_get_uclass_plat(de2);
 
 	offset = sunxi_simplefb_fdt_match(blob, pipeline);
 	if (offset < 0) {
-		printf("simplefb: no DTS stub node found for pipeline '%s' (offset=%d)\n",
+		log_debug("simplefb: no DTS stub node found for pipeline '%s' (offset=%d)\n",
 		       pipeline, offset);
 		return 0; /* Keep older kernels working */
 	}
-	printf("simplefb: found DTS stub at offset %d\n", offset);
+	log_debug("simplefb: found DTS stub at offset %d\n", offset);
 
 	start = gd->bd->bi_dram[0].start;
 	size = de2_plat->base - start;

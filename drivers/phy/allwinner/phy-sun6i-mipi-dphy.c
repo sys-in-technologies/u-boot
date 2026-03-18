@@ -266,7 +266,7 @@ static int sun6i_dphy_init(struct phy *phy)
 	struct sun6i_dphy_priv *priv = dev_get_priv(phy->dev);
 	int ret;
 
-	printf("DPHY: Initializing...\n");
+	log_debug("DPHY: Initializing...\n");
 
 	/* Enable bus clock for register access */
 	ret = clk_enable(&priv->bus_clk);
@@ -301,7 +301,7 @@ static int sun6i_dphy_init(struct phy *phy)
 		/* Configure mux and divider (gate will be controlled by clock framework) */
 		writel((1 << 24) | (m_div - 1), (u8 *)SUNXI_CCM_BASE + 0xb24);
 
-		printf("DPHY: CLK_MIPI_DSI configured: mux=1 (pll_periph0), M=%u, rate=%u MHz\n",
+		log_debug("DPHY: CLK_MIPI_DSI configured: mux=1 (pll_periph0), M=%u, rate=%u MHz\n",
 		       m_div, pll_periph0 / m_div / 1000000);
 	}
 #endif
@@ -316,7 +316,7 @@ static int sun6i_dphy_init(struct phy *phy)
 	}
 
 #ifdef CONFIG_SUNXI_GEN_NCAT2
-	printf("DPHY: CLK_MIPI_DSI final value = 0x%08x\n",
+	log_debug("DPHY: CLK_MIPI_DSI final value = 0x%08x\n",
 	       readl((u8 *)SUNXI_CCM_BASE + 0xb24));
 #endif
 
@@ -329,13 +329,13 @@ static int sun6i_dphy_configure(struct phy *phy, void *params)
 	struct phy_configure_opts_mipi_dphy *cfg = params;
 	int ret;
 
-	printf("DPHY: Configuring (priv=%p, %d lanes, bitrate %lu)...\n", priv, cfg->lanes, cfg->hs_clk_rate);
+	log_debug("DPHY: Configuring (priv=%p, %d lanes, bitrate %lu)...\n", priv, cfg->lanes, cfg->hs_clk_rate);
 	ret = phy_mipi_dphy_config_validate(cfg);
 	if (ret)
 		return ret;
 
 	memcpy(&priv->config, cfg, sizeof(priv->config));
-	printf("DPHY: lanes stored in priv: %d\n", priv->config.lanes);
+	log_debug("DPHY: lanes stored in priv: %d\n", priv->config.lanes);
 
 	return 0;
 }
@@ -375,8 +375,8 @@ static int sun6i_dphy_power_on(struct phy *phy)
 	clk_post    = DIV_ROUND_UP(priv->config.clk_post,    DPHY_MOD_CLK_PS);
 	clk_trail   = DIV_ROUND_UP(priv->config.clk_trail,   DPHY_MOD_CLK_PS);
 
-	printf("DPHY: Powering on (priv=%p, %d lanes)...\n", priv, priv->config.lanes);
-	printf("DPHY: Timings (mod_clk cycles): hs_prep=%u trail=%u clk_prep=%u zero=%u pre=%u post=%u trail=%u\n",
+	log_debug("DPHY: Powering on (priv=%p, %d lanes)...\n", priv, priv->config.lanes);
+	log_debug("DPHY: Timings (mod_clk cycles): hs_prep=%u trail=%u clk_prep=%u zero=%u pre=%u post=%u trail=%u\n",
 	       hs_prepare, hs_trail, clk_prepare, clk_zero, clk_pre, clk_post, clk_trail);
 
 	sun6i_dphy_write(priv, SUN6I_DPHY_TX_CTL_REG,
@@ -479,7 +479,7 @@ static int sun6i_dphy_probe(struct udevice *dev)
 	struct sun6i_dphy_priv *priv = dev_get_priv(dev);
 	int ret;
 
-	printf("DPHY: Probing %s...\n", dev->name);
+	log_debug("DPHY: Probing %s...\n", dev->name);
 
 	priv->regs = dev_read_addr_ptr(dev);
 	if (!priv->regs)
@@ -490,7 +490,7 @@ static int sun6i_dphy_probe(struct udevice *dev)
 	/* Get bus clock from device tree (for register access) */
 	ret = clk_get_by_name(dev, "bus", &priv->bus_clk);
 	if (ret) {
-		printf("DPHY: Warning: Failed to get bus clock: %d\n", ret);
+		log_debug("DPHY: Warning: Failed to get bus clock: %d\n", ret);
 #ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
 #endif
@@ -499,7 +499,7 @@ static int sun6i_dphy_probe(struct udevice *dev)
 	/* Get module clock from device tree (for PHY operation) */
 	ret = clk_get_by_name(dev, "mod", &priv->mod_clk);
 	if (ret) {
-		printf("DPHY: Warning: Failed to get mod clock: %d\n", ret);
+		log_debug("DPHY: Warning: Failed to get mod clock: %d\n", ret);
 #ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
 #endif
@@ -508,13 +508,13 @@ static int sun6i_dphy_probe(struct udevice *dev)
 	/* Get reset control from device tree */
 	ret = reset_get_by_index(dev, 0, &priv->reset);
 	if (ret) {
-		printf("DPHY: Warning: Failed to get reset: %d\n", ret);
+		log_debug("DPHY: Warning: Failed to get reset: %d\n", ret);
 #ifndef CONFIG_SUNXI_GEN_NCAT2
 		return ret;
 #endif
 	}
 
-	printf("DPHY: Probe successful.\n");
+	log_debug("DPHY: Probe successful.\n");
 	return 0;
 }
 

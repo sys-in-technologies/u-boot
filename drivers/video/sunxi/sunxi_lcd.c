@@ -40,7 +40,7 @@ static void sunxi_lcdc_config_pinmux(void)
 static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 			    const struct display_timing *edid)
 {
-	printf("LCD: sunxi_lcd_enable start\n");
+	log_debug("LCD: sunxi_lcd_enable start\n");
 #ifndef CONFIG_SUNXI_GEN_NCAT2
 	struct sunxi_ccm_reg * const ccm =
 	       (struct sunxi_ccm_reg *)SUNXI_CCM_BASE;
@@ -53,14 +53,14 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 
 #ifdef CONFIG_SUNXI_GEN_NCAT2
 	/* D1/T113 has DPSS_TOP at 0xabc, gate bit 0, reset bit 16 */
-	printf("LCD: Enabling DPSS_TOP clock/reset...\n");
+	log_debug("LCD: Enabling DPSS_TOP clock/reset...\n");
 	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xabc, BIT(16));
 	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xabc, BIT(0));
 	/* BUS_TCON_LCD0 at 0xb7c, gate bit 0, reset bit 16 */
-	printf("LCD: Enabling TCON_LCD0 BUS clock/reset...\n");
+	log_debug("LCD: Enabling TCON_LCD0 BUS clock/reset...\n");
 	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(16));
 	setbits_le32((u8 *)SUNXI_CCM_BASE + 0xb7c, BIT(0));
-	printf("LCD: Setting up TCON TOP mux...\n");
+	log_debug("LCD: Setting up TCON TOP mux...\n");
 	sunxi_tcon_top_setup(0, 0); /* Mixer 0, TCON 0 */
 #else
 	/* Reset off */
@@ -69,7 +69,7 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	setbits_le32(&ccm->ahb_gate1, 1 << AHB_GATE_OFFSET_LCD0);
 #endif
 
-	printf("LCD: Initializing LCDC...\n");
+	log_debug("LCD: Initializing LCDC...\n");
 	lcdc_init(lcdc);
 	sunxi_lcdc_config_pinmux();
 #if defined(CONFIG_SUNXI_GEN_NCAT2) && defined(CONFIG_VIDEO_LCD_IF_MIPI_DSI)
@@ -103,14 +103,14 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 		/* PLL_VIDEO0_4X = TCON_LCD0_CLK * 4 (mux=0 selects pll_video0_1x) */
 		pll_rate = dsi_bit_clk * 4;
 
-		printf("LCD: DSI clock: pixel=%u bpp=%u lanes=%u -> dsi_bit_clk=%lu, PLL_4X=%lu\n",
+		log_debug("LCD: DSI clock: pixel=%u bpp=%u lanes=%u -> dsi_bit_clk=%lu, PLL_4X=%lu\n",
 		       edid->pixelclock.typ, panel_bpp, lanes, dsi_bit_clk, pll_rate);
 
 		clock_set_pll3(pll_rate);
 
 		/* TCON_LCD0_CLK: mux=0 (pll_video0_1x), M=0 P=0 (div-by-1), gate on */
 		writel(BIT(31) | (0 << 24), (u8 *)SUNXI_CCM_BASE + 0xb60);
-		printf("LCD: CLK_TCON_LCD0 (0xb60) set to 0x%08x\n",
+		log_debug("LCD: CLK_TCON_LCD0 (0xb60) set to 0x%08x\n",
 		       readl((u8 *)SUNXI_CCM_BASE + 0xb60));
 
 		/* BUS_TCON_LCD0: gate + reset */
@@ -125,21 +125,21 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 		clk_div = 4;
 		clk_double = 0;
 
-		printf("LCD: TCON dclk divider = %d (SUN6I_DSI_TCON_DIV)\n", clk_div);
+		log_debug("LCD: TCON dclk divider = %d (SUN6I_DSI_TCON_DIV)\n", clk_div);
 
-		printf("LCD: PLL_VIDEO0_4X readback = %u Hz, clk_div=%d\n",
+		log_debug("LCD: PLL_VIDEO0_4X readback = %u Hz, clk_div=%d\n",
 		       clock_get_pll3(), clk_div);
 	}
 #elif defined(CONFIG_SUNXI_GEN_NCAT2)
 	/* NCAT2 non-DSI path */
-	printf("LCD: Setting up PLL...\n");
+	log_debug("LCD: Setting up PLL...\n");
 	lcdc_pll_set(NULL, 0, edid->pixelclock.typ / 1000,
 		     &clk_div, &clk_double, false);
 #else
 	lcdc_pll_set(ccm, 0, edid->pixelclock.typ / 1000,
 		     &clk_div, &clk_double, false);
 #endif
-	printf("LCD: Setting TCON0 mode...\n");
+	log_debug("LCD: Setting TCON0 mode...\n");
 #ifdef CONFIG_VIDEO_LCD_IF_MIPI_DSI
 	struct display_timing dsi_timing;
 	memcpy(&dsi_timing, edid, sizeof(dsi_timing));
@@ -150,31 +150,31 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	lcdc_tcon0_mode_set(lcdc, edid, clk_div, false,
 			    priv->panel_bpp, CONFIG_VIDEO_LCD_DCLK_PHASE);
 #endif
-	printf("LCD: Enabling LCDC...\n");
+	log_debug("LCD: Enabling LCDC...\n");
 	lcdc_enable(lcdc, priv->panel_bpp);
-	printf("LCD: TCON0 registers after enable:\n");
-	printf("LCD: TCON CTRL=0x%08x TCON0_CTRL=0x%08x TCON0_DCLK=0x%08x\n",
+	log_debug("LCD: TCON0 registers after enable:\n");
+	log_debug("LCD: TCON CTRL=0x%08x TCON0_CTRL=0x%08x TCON0_DCLK=0x%08x\n",
 	       readl(&lcdc->ctrl), readl(&lcdc->tcon0_ctrl), readl(&lcdc->tcon0_dclk));
-	printf("LCD: TCON0 TIMING_ACT=0x%08x TIMING_H=0x%08x TIMING_V=0x%08x\n",
+	log_debug("LCD: TCON0 TIMING_ACT=0x%08x TIMING_H=0x%08x TIMING_V=0x%08x\n",
 	       readl(&lcdc->tcon0_timing_active), readl(&lcdc->tcon0_timing_h),
 	       readl(&lcdc->tcon0_timing_v));
-	printf("LCD: TCON0 CPU_INTF=0x%08x IO_POL=0x%08x IO_TRI=0x%08x\n",
+	log_debug("LCD: TCON0 CPU_INTF=0x%08x IO_POL=0x%08x IO_TRI=0x%08x\n",
 	       readl(&lcdc->tcon0_cpu_intf), readl(&lcdc->tcon0_io_polarity),
 	       readl(&lcdc->tcon0_io_tristate));
 
 	if (IS_ENABLED(CONFIG_VIDEO_SUNXI_MIPI_DSI)) {
 		struct mipi_dsi_device *dsi_dev;
 
-		printf("LCD: MIPI DSI path enabled, finding devices...\n");
+		log_debug("LCD: MIPI DSI path enabled, finding devices...\n");
 		ret = uclass_get_device(UCLASS_PANEL, 0, &panel);
 		if (ret) {
-			printf("LCD: MIPI DSI panel not found\n");
+			log_debug("LCD: MIPI DSI panel not found\n");
 			goto skip_dsi;
 		}
 
 		ret = uclass_get_device(UCLASS_DSI_HOST, 0, &dsi_host);
 		if (ret) {
-			printf("LCD: MIPI DSI host not found\n");
+			log_debug("LCD: MIPI DSI host not found\n");
 			goto skip_dsi;
 		}
 
@@ -183,54 +183,54 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 		dsi_dev = plat->device;
 
 		if (!dsi_dev) {
-			printf("LCD: Error: MIPI DSI device not initialized in panel plat\n");
+			log_debug("LCD: Error: MIPI DSI device not initialized in panel plat\n");
 			goto skip_dsi;
 		}
 
-		printf("LCD: Initializing DSI host with %d lanes...\n", dsi_dev->lanes);
+		log_debug("LCD: Initializing DSI host with %d lanes...\n", dsi_dev->lanes);
 		ret = dsi_host_init(dsi_host, dsi_dev, (struct display_timing *)edid, 4, NULL);
 		if (ret) {
-			printf("LCD: MIPI DSI host init failed: %d\n", ret);
+			log_debug("LCD: MIPI DSI host init failed: %d\n", ret);
 			goto skip_dsi;
 		}
 
 		ret = mipi_dsi_attach(dsi_dev);
 		if (ret) {
-			printf("LCD: MIPI DSI attach failed: %d\n", ret);
+			log_debug("LCD: MIPI DSI attach failed: %d\n", ret);
 			goto skip_dsi;
 		}
 		if (ret) {
-			printf("LCD: MIPI DSI host init failed: %d\n", ret);
+			log_debug("LCD: MIPI DSI host init failed: %d\n", ret);
 			goto skip_dsi;
 		}
 
-		printf("LCD: Enabling panel...\n");
+		log_debug("LCD: Enabling panel...\n");
 		ret = panel_enable_backlight(panel);
 		if (ret)
-			printf("LCD: MIPI DSI panel enable failed: %d\n", ret);
+			log_debug("LCD: MIPI DSI panel enable failed: %d\n", ret);
 
 		mdelay(200);
 
-		printf("LCD: Enabling DSI host...\n");
+		log_debug("LCD: Enabling DSI host...\n");
 		ret = dsi_host_enable(dsi_host);
 		if (ret)
-			printf("LCD: MIPI DSI host enable failed: %d\n", ret);
+			log_debug("LCD: MIPI DSI host enable failed: %d\n", ret);
 	}
 
 skip_dsi:
-	printf("LCD: Checking for backlight...\n");
+	log_debug("LCD: Checking for backlight...\n");
 	ret = uclass_get_device(UCLASS_PANEL_BACKLIGHT, 0, &backlight);
 	if (!ret) {
-		printf("LCD: Enabling backlight via uclass...\n");
+		log_debug("LCD: Enabling backlight via uclass...\n");
 		backlight_enable(backlight);
 	} else {
 		/* Argon board: Backlight enable is PD17 */
-		printf("LCD: Uclass backlight not found, trying manual GPIO PD17...\n");
+		log_debug("LCD: Uclass backlight not found, trying manual GPIO PD17...\n");
 		gpio_request(SUNXI_GPD(17), "backlight");
 		gpio_direction_output(SUNXI_GPD(17), 1);
 	}
 
-	printf("LCD: sunxi_lcd_enable done\n");
+	log_debug("LCD: sunxi_lcd_enable done\n");
 	return 0;
 }
 
@@ -251,7 +251,7 @@ static int sunxi_lcd_probe(struct udevice *dev)
 	int ret;
 	int node, timing_node, val;
 
-	printf("LCD: Probing %s...\n", dev->name);
+	log_debug("LCD: Probing %s...\n", dev->name);
 
 #ifdef CONFIG_VIDEO_BRIDGE
 	/* Try to get timings from bridge first */
@@ -260,7 +260,7 @@ static int sunxi_lcd_probe(struct udevice *dev)
 		u8 edid[EDID_SIZE];
 		int channel_bpp;
 
-		printf("LCD: Found video bridge, attempting attach...\n");
+		log_debug("LCD: Found video bridge, attempting attach...\n");
 		ret = video_bridge_attach(cdev);
 		if (ret) {
 			debug("video bridge attach failed: %d\n", ret);
@@ -272,7 +272,7 @@ static int sunxi_lcd_probe(struct udevice *dev)
 					      &priv->timing, &channel_bpp);
 			priv->panel_bpp = channel_bpp * 3;
 			if (!ret) {
-				printf("LCD: Got timing from bridge.\n");
+				log_debug("LCD: Got timing from bridge.\n");
 				return ret;
 			}
 		}
@@ -284,11 +284,11 @@ static int sunxi_lcd_probe(struct udevice *dev)
 	 */
 	ret = uclass_get_device(UCLASS_PANEL, 0, &cdev);
 	if (ret) {
-		printf("LCD: MIPI DSI panel not found: %d\n", ret);
+		log_debug("LCD: MIPI DSI panel not found: %d\n", ret);
 		return ret;
 	}
 
-	printf("LCD: Found panel %s, getting timing...\n", cdev->name);
+	log_debug("LCD: Found panel %s, getting timing...\n", cdev->name);
 	ret = panel_get_display_timing(cdev, &priv->timing);
 	if (!ret) {
 		struct mipi_dsi_panel_plat *plat = dev_get_plat(cdev);
@@ -297,14 +297,14 @@ static int sunxi_lcd_probe(struct udevice *dev)
 		else
 			priv->panel_bpp = 24; /* Default for DSI */
 		
-		printf("LCD: Got timing from panel driver, bpp: %d\n", priv->panel_bpp);
+		log_debug("LCD: Got timing from panel driver, bpp: %d\n", priv->panel_bpp);
 		return 0;
 	}
 
-	printf("LCD: Driver didn't provide timing, falling back to DT...\n");
+	log_debug("LCD: Driver didn't provide timing, falling back to DT...\n");
 	if (fdtdec_decode_display_timing(gd->fdt_blob, dev_of_offset(cdev),
 					 0, &priv->timing)) {
-		printf("LCD: Failed to decode display timing from DT\n");
+		log_debug("LCD: Failed to decode display timing from DT\n");
 		return -EINVAL;
 	}
 	timing_node = fdt_subnode_offset(gd->fdt_blob, dev_of_offset(cdev),

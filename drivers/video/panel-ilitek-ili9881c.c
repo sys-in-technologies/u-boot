@@ -299,7 +299,7 @@ static int ili9881c_enable_backlight(struct udevice *dev)
 	struct mipi_dsi_device *dsi = plat->device;
 	int ret, i;
 
-	printf("Panel: Powering up and resetting...\n");
+	log_debug("Panel: Powering up and resetting...\n");
 	if (priv->power) {
 		regulator_set_enable(priv->power, true);
 		mdelay(10);
@@ -318,7 +318,7 @@ static int ili9881c_enable_backlight(struct udevice *dev)
 	dm_gpio_set_value(&priv->reset, 0);
 	mdelay(120);
 
-	printf("Panel: Sending %d init commands...\n", priv->desc->init_length);
+	log_debug("Panel: Sending %d init commands...\n", priv->desc->init_length);
 	for (i = 0; i < priv->desc->init_length; i++) {
 		const struct ili9881c_instr *instr = &priv->desc->init[i];
 
@@ -329,28 +329,28 @@ static int ili9881c_enable_backlight(struct udevice *dev)
 						 &instr->arg.cmd.data, 1);
 
 		if (ret < 0) {
-			printf("Panel: Init command %d failed: %d\n", i, ret);
+			log_debug("Panel: Init command %d failed: %d\n", i, ret);
 			return ret;
 		}
 	}
-	printf("Panel: Init commands complete.\n");
+	log_debug("Panel: Init commands complete.\n");
 
-	printf("Panel: Sending exit_sleep_mode...\n");
+	log_debug("Panel: Sending exit_sleep_mode...\n");
 	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
 	if (ret < 0) {
-		printf("Panel: exit_sleep_mode failed: %d\n", ret);
+		log_debug("Panel: exit_sleep_mode failed: %d\n", ret);
 		return ret;
 	}
 
 	mdelay(200);
 
-	printf("Panel: Sending set_display_on...\n");
+	log_debug("Panel: Sending set_display_on...\n");
 	ret = mipi_dsi_dcs_set_display_on(dsi);
 	if (ret < 0) {
-		printf("Panel: set_display_on failed: %d\n", ret);
+		log_debug("Panel: set_display_on failed: %d\n", ret);
 		return ret;
 	}
-	printf("Panel: Display on command sent.\n");
+	log_debug("Panel: Display on command sent.\n");
 
 	/* Wait for panel to stabilize after display on */
 	mdelay(100);
@@ -376,25 +376,25 @@ static int ili9881c_probe(struct udevice *dev)
 	static struct mipi_dsi_device dsi_dev; /* Static storage for the device info */
 	int ret;
 
-	printf("Panel: Probing %s...\n", dev->name);
+	log_debug("Panel: Probing %s...\n", dev->name);
 
 	priv->desc = (const struct ili9881c_desc *)dev_get_driver_data(dev);
 
 	ret = gpio_request_by_name(dev, "reset-gpios", 0, &priv->reset, GPIOD_IS_OUT);
 	if (ret) {
-		printf("Panel: Failed to request reset-gpios: %d\n", ret);
+		log_debug("Panel: Failed to request reset-gpios: %d\n", ret);
 		return ret;
 	}
 
 	ret = device_get_supply_regulator(dev, "power-supply", &priv->power);
 	if (ret && ret != -ENOENT) {
-		printf("Panel: Failed to get power-supply: %d\n", ret);
+		log_debug("Panel: Failed to get power-supply: %d\n", ret);
 		return ret;
 	}
 
 	ret = device_get_supply_regulator(dev, "vcc-dsi-supply", &priv->vcc_dsi);
 	if (ret && ret != -ENOENT) {
-		printf("Panel: Failed to get vcc-dsi-supply: %d\n", ret);
+		log_debug("Panel: Failed to get vcc-dsi-supply: %d\n", ret);
 		return ret;
 	}
 
@@ -411,7 +411,7 @@ static int ili9881c_probe(struct udevice *dev)
 	dsi_dev.mode_flags = plat->mode_flags;
 	plat->device = &dsi_dev;
 
-	printf("Panel: Probe successful (lanes=%d).\n", plat->lanes);
+	log_debug("Panel: Probe successful (lanes=%d).\n", plat->lanes);
 	return 0;
 }
 
