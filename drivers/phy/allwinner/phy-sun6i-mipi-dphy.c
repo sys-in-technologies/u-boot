@@ -223,7 +223,7 @@ static void sun50i_a100_mipi_dphy_tx_power_on(struct sun6i_dphy_priv *priv)
 
 	/* Clean start for Combo PHY registers */
 	sun6i_dphy_write(priv, 0x114, 0); /* COMBO_PHY_REG1 */
-	sun6i_dphy_write(priv, 0x118, 0); /* COMBO_PHY_REG2 */
+	sun6i_dphy_write(priv, 0x118, 20); /* COMBO_PHY_REG2: HS_STOP_DLY */
 
 	sun6i_dphy_write(priv, SUN50I_COMBO_PHY_REG0,
 			 SUN50I_COMBO_PHY_REG0_EN_CP);
