@@ -371,7 +371,7 @@ static u16 sun6i_dsi_get_video_start_delay(struct sun6i_dsi_priv *dsi,
 {
 	u32 vtotal = timing->vactive.typ + timing->vfront_porch.typ +
 		     timing->vback_porch.typ + timing->vsync_len.typ;
-	u32 vactive_start = timing->vactive.typ + timing->vfront_porch.typ;
+	u32 vactive_start = timing->vactive.typ + timing->vback_porch.typ;
 	u16 delay = vtotal - (vactive_start - timing->vactive.typ) + 1;
 
 	if (delay > vtotal)
@@ -392,7 +392,7 @@ static void sun6i_dsi_setup_burst(struct sun6i_dsi_priv *dsi,
 			     timing->hback_porch.typ + timing->hsync_len.typ;
 		u16 line_num = htotal * Bpp / device->lanes;
 		u16 edge0, edge1;
-		u32 hbp = htotal - (timing->hactive.typ + timing->hfront_porch.typ);
+		u32 hbp = timing->hfront_porch.typ;
 
 		edge1 = SUN6I_DSI_SYNC_POINT;
 		edge1 += (timing->hactive.typ + hbp + 20) * Bpp / device->lanes;
@@ -415,8 +415,8 @@ static void sun6i_dsi_setup_burst(struct sun6i_dsi_priv *dsi,
 		       dsi->regs + SUN6I_DSI_BURST_LINE_REG);
 
 		val = SUN6I_DSI_TCON_DRQ_ENABLE_MODE;
-	} else if (timing->hfront_porch.typ > 20) {
-		u16 drq = timing->hfront_porch.typ - 20;
+	} else if (timing->hback_porch.typ > 20) {
+		u16 drq = timing->hback_porch.typ - 20;
 
 		drq *= mipi_dsi_pixel_format_to_bpp(device->format);
 		drq /= 32;
@@ -513,7 +513,8 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi_priv *dsi,
 	int Bpp = mipi_dsi_pixel_format_to_bpp(device->format) / 8;
 	u16 hbp = 0, hfp = 0, hsa = 0, hblk = 0;
 	u32 basic_ctl = 0;
-	u8 buffer[256]; /* Max blanking size */
+	size_t bytes;
+	u8 *buffer;
 	u16 crc;
 
 	if (device->mode_flags & MIPI_DSI_MODE_VIDEO_BURST) {
@@ -527,9 +528,17 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi_priv *dsi,
 				     SUN6I_DSI_BASIC_CTL_TRAIL_INV(0xc);
 	} else {
 		hsa = max(10, (int)(timing->hsync_len.typ * Bpp - 10));
-		hbp = max(6, (int)(timing->hback_porch.typ * Bpp - 6));
-		hfp = max(16, (int)(timing->hfront_porch.typ * Bpp - 16));
+		hbp = max(6, (int)(timing->hfront_porch.typ * Bpp - 6));
+		hfp = max(16, (int)(timing->hback_porch.typ * Bpp - 16));
 		hblk = max(10, (int)((timing->hactive.typ + timing->hfront_porch.typ + timing->hback_porch.typ + timing->hsync_len.typ - timing->hsync_len.typ) * Bpp - 10));
+	}
+
+	bytes = max(max((size_t)hfp, (size_t)hblk),
+		    max((size_t)hsa, (size_t)hbp));
+	buffer = calloc(1, bytes);
+	if (!buffer) {
+		pr_err("DSI: failed to alloc %zu bytes for CRC\n", bytes);
+		return;
 	}
 
 	writel(basic_ctl, dsi->regs + SUN6I_DSI_BASIC_CTL_REG);
@@ -555,15 +564,12 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi_priv *dsi,
 	       dsi->regs + SUN6I_DSI_SYNC_VSE_REG);
 
 	writel(SUN6I_DSI_BASIC_SIZE0_VSA(timing->vsync_len.typ) |
-	       SUN6I_DSI_BASIC_SIZE0_VBP(timing->vback_porch.typ),
+	       SUN6I_DSI_BASIC_SIZE0_VBP(timing->vfront_porch.typ),
 	       dsi->regs + SUN6I_DSI_BASIC_SIZE0_REG);
 
 	writel(SUN6I_DSI_BASIC_SIZE1_VACT(timing->vactive.typ) |
 	       SUN6I_DSI_BASIC_SIZE1_VT(timing->vactive.typ + timing->vfront_porch.typ + timing->vback_porch.typ + timing->vsync_len.typ),
 	       dsi->regs + SUN6I_DSI_BASIC_SIZE1_REG);
-
-	/* Prepare a blank buffer for CRC calculation */
-	memset(buffer, 0, sizeof(buffer));
 
 	/* sync */
 	crc = sun6i_dsi_crc_compute(buffer, hsa);
@@ -588,6 +594,8 @@ static void sun6i_dsi_setup_timings(struct sun6i_dsi_priv *dsi,
 	/* vblk */
 	writel(sun6i_dsi_build_blk0_pkt(device->channel, 0), dsi->regs + SUN6I_DSI_BLK_VBLK0_REG);
 	writel(sun6i_dsi_build_blk1_pkt(0, 0xffff, 0), dsi->regs + SUN6I_DSI_BLK_VBLK1_REG);
+
+	free(buffer);
 }
 
 static int sun6i_dsi_start(struct sun6i_dsi_priv *dsi,
