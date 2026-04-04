@@ -252,6 +252,8 @@ obj-$(CONFIG_CMD_MESON) += meson/
 
 obj-$(CONFIG_ARCH_MVEBU) += mvebu/
 
+obj-$(CONFIG_ARCH_SUNXI) += sunxi_disp_dump.o
+
 # TI
 obj-$(CONFIG_ARCH_KEYSTONE) += ti/
 obj-$(CONFIG_ARCH_K3) += ti/
