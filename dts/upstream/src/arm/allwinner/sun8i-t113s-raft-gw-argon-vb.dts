@@ -22,6 +22,21 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	framebuffer-lcd {
+		compatible = "allwinner,simple-framebuffer",
+			     "simple-framebuffer";
+		allwinner,pipeline = "mixer0-lcd0";
+		clocks = <&ccu CLK_PLL_VIDEO0>,
+			 <&ccu CLK_BUS_MIPI_DSI>,
+			 <&ccu CLK_BUS_TCON_LCD0>,
+			 <&ccu CLK_BUS_DE>,
+			 <&ccu CLK_BUS_DPSS_TOP>,
+			 <&ccu CLK_DE>,
+			 <&ccu CLK_TCON_LCD0>,
+			 <&ccu CLK_MIPI_DSI>;
+		status = "disabled";
+	};
+
 	/* board wide 5V supply directly from DC input */
 	reg_vcc5v: regulator-5v {
 		compatible = "regulator-fixed";
@@ -38,6 +53,7 @@
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 		vin-supply = <&reg_vcc5v>;
+		regulator-always-on;
 	};
 
 	/* EA3036C DC/DC regulator on the board, also supplying VDD-SYS */
@@ -56,6 +72,7 @@
 		regulator-min-microvolt = <2800000>;
 		regulator-max-microvolt = <2800000>;
 		vin-supply = <&reg_3v3>;
+		regulator-always-on;
 	};
 
 	/* XC6206 LDO on the board */
@@ -65,6 +82,7 @@
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
 		vin-supply = <&reg_3v3>;
+		regulator-always-on;
 	};
 
 	watchdog {
@@ -105,7 +123,7 @@
 			value = <1>;
 		};
 
-                ephy-rst-gpios {
+		ephy-rst-gpios {
 			pin = "PG9";
 			function = "reset";
 			value = <0>;
@@ -161,6 +179,7 @@
 		   /* gpio not connect to real backligth */
 		   brightness-levels = <0 30 40 50 60 70 80 90 100>;
 		   default-brightness-level = <8>;
+		   status = "okay";
 	};
 };
 
@@ -250,6 +269,10 @@
 };
 
 
+&dphy {
+	status = "okay";
+};
+
 &dsi {
 	status = "okay";
 	#address-cells = <1>;
@@ -263,6 +286,7 @@
 		power-supply = <&reg_avdd2v8>;
 		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
 		backlight = <&backlight>;
+		status = "okay";
 	};
 #endif
 
@@ -273,6 +297,7 @@
 		power-supply = <&reg_avdd2v8>;
 		reset-gpios = <&pio 4 1 GPIO_ACTIVE_LOW>;
 		backlight = <&backlight>;
+		status = "okay";
 	};
 #endif
 
