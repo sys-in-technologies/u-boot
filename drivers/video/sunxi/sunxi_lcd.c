@@ -6,6 +6,7 @@
  */
 
 #include <display.h>
+#include <env.h>
 #include <log.h>
 #include <video_bridge.h>
 #include <backlight.h>
@@ -49,7 +50,7 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	       (struct sunxi_lcdc_reg *)SUNXI_LCD0_BASE;
 	struct sunxi_lcd_priv *priv = dev_get_priv(dev);
 	struct udevice *backlight, *panel, *dsi_host;
-	int clk_div, clk_double, ret;
+	int clk_div, clk_double, ret, skip_bl;
 
 #ifdef CONFIG_SUNXI_GEN_NCAT2
 	/* D1/T113 has DPSS_TOP at 0xabc, gate bit 0, reset bit 16 */
@@ -218,16 +219,21 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	}
 
 skip_dsi:
-	log_debug("LCD: Checking for backlight...\n");
-	ret = uclass_get_device(UCLASS_PANEL_BACKLIGHT, 0, &backlight);
-	if (!ret) {
-		log_debug("LCD: Enabling backlight via uclass...\n");
-		backlight_enable(backlight);
+	skip_bl = env_get_yesno("backlight_auto_on");
+	if (skip_bl == 0) {
+		log_debug("LCD: Deferring backlight activation as requested by environment.\n");
 	} else {
-		/* Argon board: Backlight enable is PD17 */
-		log_debug("LCD: Uclass backlight not found, trying manual GPIO PD17...\n");
-		gpio_request(SUNXI_GPD(17), "backlight");
-		gpio_direction_output(SUNXI_GPD(17), 1);
+		log_debug("LCD: Checking for backlight...\n");
+		ret = uclass_get_device(UCLASS_PANEL_BACKLIGHT, 0, &backlight);
+		if (!ret) {
+			log_debug("LCD: Enabling backlight via uclass...\n");
+			backlight_enable(backlight);
+		} else {
+			/* Argon board: Backlight enable is PD17 */
+			log_debug("LCD: Uclass backlight not found, trying manual GPIO PD17...\n");
+			gpio_request(SUNXI_GPD(17), "backlight");
+			gpio_direction_output(SUNXI_GPD(17), 1);
+		}
 	}
 
 	log_debug("LCD: sunxi_lcd_enable done\n");
