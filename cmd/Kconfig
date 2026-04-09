@@ -2306,6 +2306,12 @@ config CMD_BMP
 	  file format defined by Microsoft which supports images of various
 	  depths, formats and compression methods. Headers on the file
 	  determine the formats used. This command can be used by first loading
+
+config CMD_BACKLIGHT
+	bool "Enable backlight command"
+	depends on BACKLIGHT
+	help
+	  Enable the backlight command.
 	  the image into RAM, then using this command to look at it or display
 	  it.
 

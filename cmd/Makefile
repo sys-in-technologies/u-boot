@@ -33,6 +33,7 @@ obj-$(CONFIG_CMD_BLKMAP) += blkmap.o
 obj-$(CONFIG_CMD_BLOBLIST) += bloblist.o
 obj-$(CONFIG_CMD_BLOCK_CACHE) += blkcache.o
 obj-$(CONFIG_CMD_BMP) += bmp.o
+obj-$(CONFIG_CMD_BACKLIGHT) += backlight.o
 obj-$(CONFIG_CMD_BOOTCOUNT) += bootcount.o
 obj-$(CONFIG_CMD_BOOTEFI) += bootefi.o
 obj-$(CONFIG_CMD_BOOTMENU) += bootmenu.o

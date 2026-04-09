@@ -20,6 +20,7 @@
 #include <asm/global_data.h>
 #include <asm/gpio.h>
 #include <sunxi_gpio.h>
+#define DEBUG
 
 struct sunxi_lcd_priv {
 	struct display_timing timing;
@@ -50,7 +51,7 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	       (struct sunxi_lcdc_reg *)SUNXI_LCD0_BASE;
 	struct sunxi_lcd_priv *priv = dev_get_priv(dev);
 	struct udevice *backlight, *panel, *dsi_host;
-	int clk_div, clk_double, ret, skip_bl;
+	int clk_div, clk_double, ret, bl_default_on;
 
 #ifdef CONFIG_SUNXI_GEN_NCAT2
 	/* D1/T113 has DPSS_TOP at 0xabc, gate bit 0, reset bit 16 */
@@ -206,6 +207,30 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 		}
 
 		log_debug("LCD: Enabling panel...\n");
+		bl_default_on = env_get_yesno("backlight_default_on");
+		if (bl_default_on == 1) {
+		  log_debug("LCD: Checking for backlight...\n");
+		  ret = uclass_get_device(UCLASS_PANEL_BACKLIGHT, 0, &backlight);
+		  if (!ret) {
+		    log_debug("LCD: Enabling backlight via uclass...\n");
+		    backlight_enable(backlight);
+		  } else {
+		    /* Argon board: Backlight enable is PD17 */
+		    log_debug("LCD: Uclass backlight not found, trying manual GPIO PD17...\n");
+		    gpio_request(SUNXI_GPD(17), "backlight");
+		    gpio_direction_output(SUNXI_GPD(17), 1);
+		  }
+		} else {
+		  log_debug("LCD: Deferring backlight activation as requested by environment. Turn off by default.\n");
+		  ret = uclass_get_device(UCLASS_PANEL_BACKLIGHT, 0, &backlight);
+		  if (ret) {
+		    /* Argon board: Backlight enable is PD17 */
+		    log_debug("LCD: Uclass backlight not found, trying manual GPIO PD17...\n");
+		    gpio_request(SUNXI_GPD(17), "backlight");
+		    gpio_direction_output(SUNXI_GPD(17), 0);
+		  }
+		}
+
 		ret = panel_enable_backlight(panel);
 		if (ret)
 			log_debug("LCD: MIPI DSI panel enable failed: %d\n", ret);
@@ -219,23 +244,6 @@ static int sunxi_lcd_enable(struct udevice *dev, int bpp,
 	}
 
 skip_dsi:
-	skip_bl = env_get_yesno("backlight_auto_on");
-	if (skip_bl == 0) {
-		log_debug("LCD: Deferring backlight activation as requested by environment.\n");
-	} else {
-		log_debug("LCD: Checking for backlight...\n");
-		ret = uclass_get_device(UCLASS_PANEL_BACKLIGHT, 0, &backlight);
-		if (!ret) {
-			log_debug("LCD: Enabling backlight via uclass...\n");
-			backlight_enable(backlight);
-		} else {
-			/* Argon board: Backlight enable is PD17 */
-			log_debug("LCD: Uclass backlight not found, trying manual GPIO PD17...\n");
-			gpio_request(SUNXI_GPD(17), "backlight");
-			gpio_direction_output(SUNXI_GPD(17), 1);
-		}
-	}
-
 	log_debug("LCD: sunxi_lcd_enable done\n");
 	return 0;
 }

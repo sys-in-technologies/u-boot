@@ -6,6 +6,7 @@
 #include <backlight.h>
 #include <bmp_layout.h>
 #include <dm.h>
+#include <env.h>
 #include <log.h>
 #include <mapmem.h>
 #include <splash.h>
@@ -19,6 +20,7 @@
 #define BMP_RLE8_EOL            0
 #define BMP_RLE8_EOBMP          1
 #define BMP_RLE8_DELTA          2
+#define DEBUG
 
 /**
  * get_bmp_col_16bpp() - Convert a colour-table entry into a 16bpp pixel value
@@ -468,8 +470,8 @@ int video_bmp_display(struct udevice *dev, ulong bmp_image, int x, int y,
         if (ret)
                 return ret;
 
-        /* Enable backlight after successfully drawing a splash image */
-        {
+	if (env_get_yesno("backlight_auto_on") == 1) {
+	  /* Enable backlight after successfully drawing a splash image */
                 struct udevice *backlight;
                 int bl_ret;
 
